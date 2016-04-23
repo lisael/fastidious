@@ -4,7 +4,7 @@ from fastidious import Parser
 
 class Calculator(Parser):
     __grammar__ = r"""
-    eval <- e:expr EOF {@e}
+    eval <- :expr EOF {@expr}
     expr <- _ first:term rest:( _ add_op _ term  )* _ {on_expr}
     term <- first:factor rest:( _ mult_op _ factor )* {on_expr}
     add_op <- '+' / '-'

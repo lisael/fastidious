@@ -154,6 +154,13 @@ class GrammarParser(Parser):
     def on_labeled_expr(self, value, label, expr):
         if not label:
             return expr
+        if label[0] == "":
+            try:
+                label[0] = expr.rulename
+            except AttributeError:
+                self.parse_error(
+                    "Label can be omitted only on rule reference"
+                )
         return LabeledExpr(label[0], expr)
 
     def on_rule_expr(self, value, name):
@@ -216,12 +223,10 @@ class GrammarParser(Parser):
         "v": "\v",
         "\\": "\\",
     }
+
     def on_char_class_escape(self, value, escaped=None):
         return self._escaped.get(escaped, self.flatten(value))
 
-
-    # there's no parser to parse the grammar parser grammar. If you understand
-    # this, you guessed why we have to create the rules by hand.
     __rules__ = [
 
         # grammar <- __ rules:( rule __ )+
@@ -542,7 +547,7 @@ class GrammarParser(Parser):
             "on_seq_expr"
         ),
 
-        # labeled_expr <- label:(identifier __ ':' __)? expr:prefixed_expr
+        # labeled_expr <- label:(identifier? __ ':' __)? expr:prefixed_expr
         Rule(
             "labeled_expr",
             SeqExpr(
@@ -550,7 +555,9 @@ class GrammarParser(Parser):
                     "label",
                     MaybeExpr(
                         SeqExpr(
-                            RuleExpr("identifier"),
+                            MaybeExpr(
+                                RuleExpr("identifier"),
+                            ),
                             RuleExpr("__"),
                             LiteralExpr(":"),
                             RuleExpr("__")
