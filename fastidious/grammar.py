@@ -277,18 +277,18 @@ class GrammarParser(Parser):
         ),
 
 
-        # code_block <- "{" cd:code "}"
+        # code_block <- "{" :code "}"
         Rule(
             "code_block",
             SeqExpr(
                 LiteralExpr("{"),
                 LabeledExpr(
-                    "cd",
+                    "code",
                     RuleExpr("code"),
                 ),
                 LiteralExpr("}"),
             ),
-            "@cd"
+            "@code"
         ),
 
         # code <- ( ( ![{}] source_char )+ / "{" code "}" )*
