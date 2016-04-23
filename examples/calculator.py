@@ -9,7 +9,7 @@ class Calculator(Parser):
     term <- first:factor rest:( _ mult_op _ factor )* {on_expr}
     add_op <- '+' / '-'
     mult_op <- '*' / '/'
-    factor <- ( '(' factor:expr ')' ) / factor:integer {@factor}
+    factor <- ( $'(' factor:expr ')' ) / factor:integer {@factor}
     integer <- '-'? [0-9]+ {on_integer}
     _ <- [ \n\t\r]*
     EOF <- !.
