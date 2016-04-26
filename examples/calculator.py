@@ -5,12 +5,12 @@ from fastidious import Parser
 class Calculator(Parser):
     __grammar__ = r"""
     eval <- :expr EOF {@expr}
-    expr <- _ first:term rest:( _ add_op _ term  )* _ {on_expr}
+    expr <- _ first:term rest:( _ add_op _ term  )* _
     term <- first:factor rest:( _ mult_op _ factor )* {on_expr}
     add_op <- '+' / '-'
     mult_op <- '*' / '/'
     factor <- ( '(' factor:expr ')' ) / factor:integer {@factor}
-    integer <- '-'? [0-9]+ {on_integer}
+    integer <- '-'? [0-9]+
     _ <- [ \n\t\r]*
     EOF <- !.
     """
@@ -34,4 +34,5 @@ class Calculator(Parser):
 
 if __name__ == "__main__":
     import sys
-    print Calculator("".join(sys.argv[1:])).eval()
+    c = Calculator("".join(sys.argv[1:]))
+    print(c.eval())

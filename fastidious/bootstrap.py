@@ -93,8 +93,14 @@ class ParserMixin(object):
         self.input = input
         self.pos = 0
         self.start = 0
+        self.args_stack = {}
         self._debug_indent = 0
         self._debug = False
+
+    def p_suffix(self, length=None):
+        if length is not None:
+            return self.input[self.pos:self.pos+length]
+        return self.input[self.pos:]
 
     def peek(self):
         try:
@@ -125,13 +131,14 @@ class ParserMixin(object):
         )
 
     def startswith(self, st, ignorecase=False):
-        matcher = self.input[self.pos:self.pos+len(st)]
+        length = len(st)
+        matcher = result = self.input[self.pos:self.pos+length]
         if ignorecase:
-            matcher = matcher.lower()
+            matcher = result.lower()
             st = st.lower()
         if matcher == st:
-            self.pos += len(st)
-            return True
+            self.pos += length
+            return result
         return False
 
     def flatten(self, obj, **kwargs):
@@ -458,17 +465,23 @@ class _GrammarParserBootstraper(Parser,
                             RuleExpr("EOL")
                         )
                     ),
-                    RuleExpr("source_char")
+                    LabeledExpr(
+                        "char",
+                        RuleExpr("source_char")
+                    ),
                 ),
                 SeqExpr(
                     LiteralExpr("\\"),
-                    RuleExpr("double_string_escape")
+                    LabeledExpr(
+                        "char",
+                        RuleExpr("double_string_escape")
+                    )
                 )
             ),
-            "flatten"
+            "@char"
         ),
 
-        # single_string_char <- !( "'" / "\\" / EOL ) source_char / "\\" single_string_escape
+        # single_string_char <- !( "'" / "\\" / EOL ) char:source_char / "\\" char:single_string_escape
         Rule(
             "single_string_char",
             ChoiceExpr(
@@ -480,39 +493,48 @@ class _GrammarParserBootstraper(Parser,
                             RuleExpr("EOL")
                         )
                     ),
-                    RuleExpr("source_char")
+                    LabeledExpr(
+                        "char",
+                        RuleExpr("source_char")
+                    )
                 ),
                 SeqExpr(
                     LiteralExpr("\\"),
-                    RuleExpr("single_string_escape")
+                    LabeledExpr(
+                        "char",
+                        RuleExpr("single_string_escape")
+                    )
                 )
             ),
-            "flatten"
+            "@char"
         ),
 
-        # double_string_escape <- "'" / common_escape
-        Rule(
-            "double_string_escape",
-            ChoiceExpr(
-                LiteralExpr("'"),
-                RuleExpr("common_escape")
-            )
-        ),
-
-        # single_string_escape <- '"' / common_escape
+        # single_string_escape <- char:"'" / char:common_escape
         Rule(
             "single_string_escape",
             ChoiceExpr(
+                LiteralExpr("'"),
+                RuleExpr("common_escape")
+            ),
+            #"@char"
+        ),
+
+        # double_string_escape <- char:'"' / char:common_escape
+        Rule(
+            "double_string_escape",
+            ChoiceExpr(
                 LiteralExpr('"'),
                 RuleExpr("common_escape")
-            )
+            ),
+            #"@char"
         ),
 
 
         # common_escape <- single_char_escape / OctalEscape / HexEscape / LongUnicodeEscape / ShortUnicodeEscape
         Rule(
             "common_escape",
-            RuleExpr("single_char_escape")
+            RuleExpr("single_char_escape"),
+            "on_common_escape"
         ),
 
         # single_char_escape <- 'a' / 'b' / 'n' / 'f' / 'r' / 't' / 'v' / '\\'
@@ -527,14 +549,14 @@ class _GrammarParserBootstraper(Parser,
                 LiteralExpr("t"),
                 LiteralExpr("v"),
                 LiteralExpr("\\"),
-            )
+            ),
         ),
 
         # any_char_expr <- "."
         Rule(
             "any_char_expr",
             LiteralExpr("."),
-            lambda x, y: AnyCharExpr()
+            "on_any_char_expr"
         ),
 
         # rule_expr <- name:identifier_name !( __ "<-" )
@@ -601,7 +623,7 @@ class _GrammarParserBootstraper(Parser,
             "on_labeled_expr"
         ),
 
-        # prefixed_expr <- op:( prefix __ )? expr:suffixed_expr
+        # prefixed_expr <- prefix:( prefix __ )? expr:suffixed_expr
         Rule(
             "prefixed_expr",
             SeqExpr(
@@ -697,7 +719,7 @@ class _GrammarParserBootstraper(Parser,
             "on_class_char_range"
         ),
 
-        # class_char <- !( "]" / "\\" / EOL ) source_char / "\\" escaped:char_class_escape
+        # class_char <- !( "]" / "\\" / EOL ) char:source_char / "\\" char:char_class_escape
         Rule(
             "class_char",
             ChoiceExpr(
@@ -709,14 +731,20 @@ class _GrammarParserBootstraper(Parser,
                             RuleExpr("EOL"),
                         )
                     ),
-                    RuleExpr("source_char")
+                    LabeledExpr(
+                        "char",
+                        RuleExpr("source_char")
+                    )
                 ),
                 SeqExpr(
                     LiteralExpr("\\"),
-                    RuleExpr("char_class_escape")
+                    LabeledExpr(
+                        "char",
+                        RuleExpr("char_class_escape")
+                    )
                 )
             ),
-            "on_char_class_escape"
+            "@char"
         ),
 
         # char_class_escape <- ']' / common_escape
@@ -725,7 +753,8 @@ class _GrammarParserBootstraper(Parser,
             ChoiceExpr(
                 LiteralExpr("]"),
                 RuleExpr("common_escape")
-            )
+            ),
+            #"@char"
         ),
 
 
