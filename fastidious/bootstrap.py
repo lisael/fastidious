@@ -10,14 +10,29 @@ class UnknownRule(Exception):
 
 
 class ParserMeta(type):
+    _parser = None
     def __new__(cls, name, bases, attrs):
         if "__grammar__" in attrs:
-            attrs["__rules__"] = cls.parse_grammar(attrs["__grammar__"])
+            if name == "_GrammarParser":
+                parser = _GrammarParserBootstraper
+                # for r in parser.__rules__:
+                    # print r.as_grammar()
+                # raise Exception()
+            else:
+                from .parser import _GrammarParser
+                parser = _GrammarParser
+                #parser = _GrammarParserBootstraper
+            parser._debug=True
+            attrs["__rules__"] = cls.parse_grammar(
+                attrs["__grammar__"],
+                parser
+            )
         rules = attrs.get("__rules__", [])
         new = super(ParserMeta, cls).__new__(cls, name, bases, attrs)
-        #import ipdb; ipdb.set_trace()  # XXX BREAKPOINT
+        # print rules
         for rule in rules:
             rule._attach_to(new)
+            # print rule.as_grammar()
         cls.post_process_rules(new)
         return new
 
@@ -51,8 +66,8 @@ class ParserMeta(type):
         for r in rules:
             r.visit(check_unknown_visitor)
 
-    @staticmethod
-    def parse_grammar(grammar):
+    @classmethod
+    def parse_grammar(cls, grammar, parser):
         lines = grammar.split('\n')
         lines.append("")
         lno = 0
@@ -64,7 +79,8 @@ class ParserMeta(type):
         stripped = "\n".join(
             [line.replace(indent, "")
              for line in lines[lno:]])
-        rules = GrammarParser(stripped).grammar()
+        parser._debug=True
+        rules = parser(stripped).grammar()
         return rules
 
 
@@ -129,15 +145,24 @@ class Parser(object):
         return result
 
 
-class GrammarParser(Parser):
+class Parser(ParserMixin):
+    __metaclass__ = ParserMeta
+
+
+class _GrammarParserMixin(object):
 
     def on_rule(self, value, name, expr, code):
         if code:
-            return Rule(name, expr, code[1])
-        return Rule(name, expr)
+            r = Rule(name, expr, code[1])
+        else :
+            r = Rule(name, expr)
+        return r
 
-    def on_rules(self, value, rules):
+    def on_grammar(self, value, rules):
         return [r[0] for r in rules]
+
+    def on_any_char_expr(self, value):
+        return AnyCharExpr()
 
     def on_choice_expr(self, value, first, rest):
         if not rest:
@@ -224,8 +249,14 @@ class GrammarParser(Parser):
         "\\": "\\",
     }
 
-    def on_char_class_escape(self, value, escaped=None):
-        return self._escaped.get(escaped, self.flatten(value))
+
+    def on_common_escape(self, value):
+        return self._escaped[self.flatten(value)]
+
+
+class _GrammarParserBootstraper(Parser,
+                                _GrammarParserMixin):
+
 
     __rules__ = [
 
@@ -244,7 +275,7 @@ class GrammarParser(Parser):
                     ),
                 ),
             ),
-            "on_rules"
+            "on_grammar"
         ),
 
         # rule <- name:identifier_name __ "<-" __ expr:expression code:( __ CodeBlock )? EOS
