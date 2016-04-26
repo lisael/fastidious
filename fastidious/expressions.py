@@ -63,16 +63,17 @@ class SeqExpr(ExprMixin):
     def __call__(self, parser):
         self.debug(parser, "SeqExpr")
         parser._debug_indent += 1
-        savepoint = parser.save()
+        parser.p_save()
         results = []
         for expr in self.exprs:
             res = expr(parser)
             if res is False:
-                parser.restore(savepoint)
+                parser.p_restore()
                 parser._debug_indent -= 1
                 return False
             results.append(res)
         parser._debug_indent -= 1
+        parser.p_discard()
         return results
 
     def as_grammar(self, atomic=False):
@@ -88,21 +89,25 @@ class SeqExpr(ExprMixin):
                 expr_code = """
 {}
 if result is False:
-    self.restore(savepoint_{})
+    self.p_restore()
 else:
     results.append(result)
-                    """.format(expr.as_code(), self.id).strip()
+                    """.format(expr.as_code()).strip()
                 exprs.append(self._indent(expr_code, i))
             return "\n".join(exprs)
 
 
         code = """
 # {}
-savepoint_{} = self.save()
+self.p_save()
 results = []
 {}
+self.p_discard()
 result = results
-        """.format(self.as_grammar(), self.id, expressions())
+        """.format(
+            self.as_grammar(),
+            expressions()
+        )
         return code.strip()
 
 
@@ -113,14 +118,15 @@ class ChoiceExpr(ExprMixin):
     def __call__(self, parser):
         self.debug(parser, "ChoiceExpr")
         parser._debug_indent += 1
-        savepoint = parser.save()
+        parser.p_save()
         for expr in self.exprs:
             res = expr(parser)
             if res is not False:
                 parser._debug_indent -= 1
+                parser.p_discard()
                 return res
-            parser.restore(savepoint)
         parser._debug_indent -= 1
+        parser.p_restore()
         return False
 
     def as_grammar(self, atomic=False):
@@ -137,20 +143,21 @@ class ChoiceExpr(ExprMixin):
                     expr_code = """
 {}
 if result is False:
-                    """.format(expr.as_code(), self.id).strip()
+                    """.format(expr.as_code()).strip()
                     exprs.append(self._indent(expr_code, i ))
                 exprs.append(self._indent("pass", i+1))
             return "\n".join(exprs)
 
         code = """
-# {2}
-savepoint_{0} = self.save()
+# {1}
+self.p_save()
 result = False
-{1}
+{0}
 if result is False:
-    self.restore(savepoint_{0})
+    self.p_restore()
+else:
+    self.p_discard()
         """.format(
-            self.id,
             expressions(),
             self.as_grammar()
         )
@@ -161,11 +168,12 @@ if result is False:
 class AnyCharExpr(ExprMixin, AtomicExpr):
     def __call__(self, parser):
         self.debug(parser, "AnyCharExpr")
-        sp = parser.save()
+        parser.p_save()
         n = parser.next()
         if n is not None:
+            parser.p_discard()
             return n
-        parser.restore(sp)
+        parser.p_restore()
         return False
 
     def as_grammar(self, atomic=False):
@@ -174,16 +182,15 @@ class AnyCharExpr(ExprMixin, AtomicExpr):
     def as_code(self):
         code = """
 # .
-savepoint_{0} = self.save()
+self.p_save()
 n = self.next()
 if n is not None:
+    self.p_discard()
     result = n
 else:
-    self.restore(savepoint_{0})
+    self.p_restore()
     result = False
-        """.format(
-                self.id,
-            )
+        """
         return code.strip()
 
 
@@ -232,11 +239,12 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
 
     def __call__(self, parser):
         self.debug(parser, "CharRangeExpr `{}`".format(self.chars))
-        sp = parser.save()
+        parser.p_save()
         n = parser.next()
         if n is not None and n in self.chars:
+            parser.p_discard()
             return n
-        parser.restore(sp)
+        parser.p_restore()
         return False
 
     def as_grammar(self, atomic=False):
@@ -251,18 +259,18 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
 
     def as_code(self):
         code = """
-# {2}
-savepoint_{0} = self.save()
+# {0}
+self.p_save()
 n = self.next()
 if n is not None and n in {1}:
+    self.p_discard()
     result = n
 else:
-    self.restore(savepoint_{0})
+    self.p_restore()
     result = False
         """.format(
-                self.id,
+                self.as_grammar(),
                 repr(self.chars),
-                self.as_grammar()
             )
         return code.strip()
 
@@ -274,7 +282,7 @@ class OneOrMoreExpr(ExprMixin):
     def __call__(self, parser):
         self.debug(parser, "OneOrMoreExpr")
         parser._debug_indent += 1
-        sp = parser.save()
+        parser.p_save()
         results = []
         while 42:
             r = self.expr(parser)
@@ -284,10 +292,11 @@ class OneOrMoreExpr(ExprMixin):
                 break
         parser._debug_indent -= 1
         if not results:
-            parser.restore(sp)
+            parser.p_restore()
             return False
         if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
             results = "".join(results)
+        parser.p_discard()
         return results
 
     def as_grammar(self, atomic=False):
@@ -359,9 +368,9 @@ class FollowedBy(ExprMixin):
     def __call__(self, parser):
         self.debug(parser, "FollowedBy")
         parser._debug_indent += 1
-        savepoint = parser.save()
+        parser.p_save()
         result = self.expr(parser) is not False
-        parser.restore(savepoint)
+        parser.p_restore()
         parser._debug_indent -= 1
         return result
 
@@ -376,9 +385,9 @@ class NotFollowedBy(ExprMixin):
     def __call__(self, parser):
         self.debug(parser, "NotFollowedBy")
         parser._debug_indent += 1
-        savepoint = parser.save()
+        parser.p_save()
         result = self.expr(parser) is False and ""
-        parser.restore(savepoint)
+        parser.p_restore()
         parser._debug_indent -= 1
         return result
 
@@ -387,13 +396,12 @@ class NotFollowedBy(ExprMixin):
 
     def as_code(self):
         code = """
-# {2}
-savepoint_{0} = self.save()
-{1}
+# {1}
+self.p_save()
+{0}
 result = result is Falsa and ""
-self.restore(savepoint_{0})
+self.p_restore()
         """.format(
-            self.id,
             self.expr.as_code(),
             self.as_grammar(),
         )

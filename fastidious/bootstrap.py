@@ -96,6 +96,7 @@ class ParserMixin(object):
         self.args_stack = {}
         self._debug_indent = 0
         self._debug = False
+        self._p_savepoint_stack = []
 
     def p_suffix(self, length=None):
         if length is not None:
@@ -115,11 +116,16 @@ class ParserMixin(object):
         except IndexError:
             return None
 
-    def save(self):
-        return (self.pos, self.start)
+    def p_save(self):
+        self._p_savepoint_stack.append((self.pos, self.start))
+        # return (self.pos, self.start)
 
-    def restore(self, savepoint):
-        self.pos, self.start = savepoint
+    def p_restore(self):
+        self.pos, self.start = self._p_savepoint_stack.pop()
+        # self.pos, self.start = savepoint
+
+    def p_discard(self):
+        self._p_savepoint_stack.pop()
 
     @property
     def current_line(self):
