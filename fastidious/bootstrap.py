@@ -88,9 +88,7 @@ class ParserError(Exception):
     pass
 
 
-class Parser(object):
-    __metaclass__ = ParserMeta
-
+class ParserMixin(object):
     def __init__(self, input):
         self.input = input
         self.pos = 0
