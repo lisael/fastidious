@@ -62,6 +62,42 @@ class SeqExprTest(TestCase, ExprTestMixin):
         )
 
 
+class OneOrMoreExprTest(TestCase, ExprTestMixin):
+    ExprKlass = OneOrMoreExpr
+
+    def test_one_or_more(self):
+        self.expect(
+            (LiteralExpr("a"),),
+            "aab", ["a", "a"]
+        )
+        self.expect(
+            (LiteralExpr("a"),),
+            "aaa", ["a", "a", "a"]
+        )
+        self.expect(
+            (LiteralExpr("a"),),
+            "bbb", False
+        )
+
+
+class ZeroOrMoreExprTest(TestCase, ExprTestMixin):
+    ExprKlass = ZeroOrMoreExpr
+
+    def test_zero_or_more(self):
+        self.expect(
+            (LiteralExpr("a"),),
+            "aab", ["a", "a"]
+        )
+        self.expect(
+            (LiteralExpr("a"),),
+            "aaa", ["a", "a", "a"]
+        )
+        self.expect(
+            (LiteralExpr("a"),),
+            "bbb", []
+        )
+
+
 class ChoiceExprTest(TestCase, ExprTestMixin):
     ExprKlass = ChoiceExpr
 
@@ -81,11 +117,24 @@ class AnyCharExprTest(TestCase, ExprTestMixin):
         self.expect(tuple(), "", False)
 
 
+class MaybeExprTest(TestCase, ExprTestMixin):
+    ExprKlass = MaybeExpr
+
+
+class NotFollowedByTest(TestCase, ExprTestMixin):
+    ExprKlass = NotFollowedBy
+
+
+class FollowedByTest(TestCase, ExprTestMixin):
+    ExprKlass = FollowedBy
+
+
 class TestRule(TestCase):
     def test_method(self):
         class TestRuleParser(ParserMixin):
             def on_rulename(self, content, argname):
                 return content, argname
+
         rule = Rule(
             "rulename",
             SeqExpr(

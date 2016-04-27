@@ -11,29 +11,26 @@ class UnknownRule(Exception):
 
 class ParserMeta(type):
     _parser = None
+
     def __new__(cls, name, bases, attrs):
         if "__grammar__" in attrs:
             if name == "_GrammarParser":
                 parser = _GrammarParserBootstraper
-                # for r in parser.__rules__:
-                    # print r.as_grammar()
-                # raise Exception()
             else:
                 from .parser import _GrammarParser
                 parser = _GrammarParser
-                #parser = _GrammarParserBootstraper
-            parser._debug=True
             attrs["__rules__"] = cls.parse_grammar(
                 attrs["__grammar__"],
                 parser
             )
         rules = attrs.get("__rules__", [])
         new = super(ParserMeta, cls).__new__(cls, name, bases, attrs)
-        # print rules
-        for rule in rules:
-            rule._attach_to(new)
-            # print rule.as_grammar()
         cls.post_process_rules(new)
+        for rule in rules:
+            if name == "_GrammarParserBootstraper":
+                rule._attach_to(new)
+            else:
+                rule.as_method(new)
         return new
 
     @classmethod
@@ -161,6 +158,7 @@ class Parser(ParserMixin):
 
 
 class _GrammarParserMixin(object):
+
 
     def on_rule(self, value, name, expr, code):
         if code:

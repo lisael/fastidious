@@ -27,10 +27,21 @@ class GrammarParserMixin(object):
         p = self.klass(r'[0-9\\]')
         self.assertEquals(p.char_range_expr().chars, "0123456789\\")
 
+    def test_rule(self):
+        parser = self.klass("rulename <- 'literal' {on_rulename}")
+        result = parser.rule()
+        self.assertEquals(result.action, "on_rulename")
+
+    def test_code_block(self):
+        parser = self.klass("{on_rulename}")
+        result = parser.code_block()
+        self.assertEquals(result, "on_rulename")
+
+
 
 class TestGrammarParserBootstraper(TestCase, GrammarParserMixin):
     klass = _GrammarParserBootstraper
 
 
-class TestGrammarParser(TestCase, GrammarParserMixin):
+class TestGrammarParserXX(TestCase, GrammarParserMixin):
     klass = _GrammarParser

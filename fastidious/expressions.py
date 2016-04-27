@@ -33,8 +33,8 @@ class ExprMixin(object):
     @property
     def id(self):
         if not hasattr(self, "_id"):
-            self._id = self.last_id
-            self.last_id += 1
+            self._id = ExprMixin.last_id
+            ExprMixin.last_id += 1
         return self._id
 
     def _indent(self, code, space):
@@ -87,25 +87,28 @@ class SeqExpr(ExprMixin):
             exprs = []
             for i, expr in enumerate(self.exprs):
                 expr_code = """
-{}
+{0}
 if result is False:
+    results_{1} = False
     self.p_restore()
 else:
-    results.append(result)
-                    """.format(expr.as_code()).strip()
+    results_{1}.append(result)
+                    """.format(expr.as_code(), self.id).strip()
                 exprs.append(self._indent(expr_code, i))
             return "\n".join(exprs)
 
 
         code = """
-# {}
+# {0}
 self.p_save()
-results = []
-{}
-self.p_discard()
-result = results
+results_{1} = []
+{2}
+if results_{1} is not False:
+    self.p_discard()
+result = results_{1}
         """.format(
             self.as_grammar(),
+            self.id,
             expressions()
         )
         return code.strip()
@@ -161,7 +164,6 @@ else:
             expressions(),
             self.as_grammar()
         )
-        print code
         return code.strip()
 
 
@@ -302,6 +304,35 @@ class OneOrMoreExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}+".format(self.expr.as_grammar(True))
 
+    def as_code(self):
+        if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
+            result_line = 'result = "".join(results_{})'.format(self.id)
+        else:
+            result_line = 'result = results_{}'.format(self.id)
+        code = """
+# {0}
+self.p_save()
+results_{3} = []
+while 42:
+{1}
+    if result is not False:
+        results_{3}.append(result)
+    else:
+        break
+if not results_{3}:
+    self.p_restore()
+    result = False
+else:
+    self.p_discard()
+    {2}
+        """.format(
+            self.as_grammar(),
+            self._indent(self.expr.as_code(), 1),
+            result_line,
+            self.id,
+        )
+        return code.strip()
+
 
 class ZeroOrMoreExpr(ExprMixin):
     def __init__(self, expr):
@@ -325,6 +356,29 @@ class ZeroOrMoreExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}*".format(self.expr.as_grammar(True))
 
+    def as_code(self):
+        if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
+            result_line = 'result = "".join(results_{})'.format(self.id)
+        else:
+            result_line = 'result = results_{}'.format(self.id)
+        code = """
+# {0}
+results_{3} = []
+while 42:
+{1}
+    if result is not False:
+        results_{3}.append(result)
+    else:
+        break
+{2}
+        """.format(
+            self.as_grammar(),
+            self._indent(self.expr.as_code(), 1),
+            result_line,
+            self.id,
+        )
+        return code.strip()
+
 
 class RuleExpr(ExprMixin, AtomicExpr):
     def __init__(self, rulename):
@@ -341,7 +395,7 @@ class RuleExpr(ExprMixin, AtomicExpr):
         return self.rulename
 
     def as_code(self):
-        return "result = self.{}".format(self.rulename)
+        return "result = self.{}()".format(self.rulename)
 
 
 class MaybeExpr(ExprMixin):
@@ -360,6 +414,14 @@ class MaybeExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}?".format(self.expr.as_grammar(True))
 
+    def as_code(self):
+        code = """
+# {}
+{}
+result = "" if result is False else result
+        """.format(self.as_grammar(), self.expr.as_code())
+        return code.strip()
+
 
 class FollowedBy(ExprMixin):
     def __init__(self, expr=None):
@@ -376,6 +438,20 @@ class FollowedBy(ExprMixin):
 
     def as_grammar(self, atomic=False):
         return "&{}".format(self.expr.as_grammar(True))
+
+    def as_code(self):
+        code = """
+# {1}
+self.p_save()
+{0}
+result = result is not False
+self.p_restore()
+        """.format(
+            self.expr.as_code(),
+            self.as_grammar(),
+        )
+        return code.strip()
+
 
 
 class NotFollowedBy(ExprMixin):
@@ -399,12 +475,13 @@ class NotFollowedBy(ExprMixin):
 # {1}
 self.p_save()
 {0}
-result = result is Falsa and ""
+result = result is False and ""
 self.p_restore()
         """.format(
             self.expr.as_code(),
             self.as_grammar(),
         )
+        return code.strip()
 
 
 class LabeledExpr(ExprMixin, AtomicExpr):
@@ -450,6 +527,7 @@ class Rule(ExprMixin):
         self.args_stack.append({})
         result = self.expr(parser)
         args = self.args_stack.pop()
+
         if result is not False:
             if self.action is not None:
                 if isinstance(self.action, basestring):
@@ -466,14 +544,18 @@ class Rule(ExprMixin):
         if self.action is not None:
             if isinstance(self.action, basestring):
                 if self.action.startswith("@"):
-                    return "return args[{}]".format(self.action[1:])
-                return "return self.{}(result, **args)".format(
-                    self.action
-                )
-        else:
-            return "return result"
+                    return "return args['{}']".format(self.action[1:])
+                if self.action.strip() != "":
+                    return "return self.{}(result, **args)".format(
+                        self.action
+                    )
+        return "return result"
 
     def as_method(self, parser):
+        if not self.action:
+            default_action = "on_{}".format(self.name)
+            if hasattr(parser, default_action):
+                self.action = default_action
 
         code = """
 def new_method(self):
@@ -481,7 +563,7 @@ def new_method(self):
     self.args_stack.setdefault("{0}",[]).append(dict())
 {1}
     args = self.args_stack["{0}"].pop()
-    if result is not None:
+    if result is not False:
         {2}
     return result
         """.format(self.name,
@@ -490,10 +572,10 @@ def new_method(self):
                    self.as_grammar()
                    )
         code = code.strip()
-        print code
         exec(code)
         code = code.replace("new_method", self.name)
         new_method._code = code  # noqa
+        new_method.func_name = self.name  # noqa
         if isinstance(parser, type):
             meth = UnboundMethodType(new_method, None, parser)  # noqa
         else:
