@@ -2,8 +2,6 @@ from .bootstrap import Parser, _GrammarParserMixin
 
 
 class _GrammarParser(Parser, _GrammarParserMixin):
-    def on_grammar(self, value, rules):
-        return [r[0] for r in rules]
 
 
     __grammar__ = r"""

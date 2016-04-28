@@ -86,6 +86,8 @@ class ParserError(Exception):
 
 
 class ParserMixin(object):
+    __memoize__ = True
+
     def __init__(self, input):
         self.input = input
         self.pos = 0
@@ -94,6 +96,7 @@ class ParserMixin(object):
         self._debug_indent = 0
         self._debug = False
         self._p_savepoint_stack = []
+        self._p_memoized = {}
 
     def p_suffix(self, length=None):
         if length is not None:

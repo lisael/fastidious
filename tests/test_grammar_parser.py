@@ -38,7 +38,6 @@ class GrammarParserMixin(object):
         self.assertEquals(result, "on_rulename")
 
 
-
 class TestGrammarParserBootstraper(TestCase, GrammarParserMixin):
     klass = _GrammarParserBootstraper
 
