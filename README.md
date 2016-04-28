@@ -52,7 +52,7 @@ examples/calculator.py "-21 *  ( 3 + 1 ) / -2"
 42
 ```
 ## PEG Syntax
-The whole syntax is formely defined i in (fastidious parser code)[fastidious/parser.py], using the PEG syntax (which is actually used to generate the fastidious parser itself, so it's THE TRUTH. I like meta-stuff). What follows is an informal description of this syntax.
+The whole syntax is formely defined i in [fastidious parser code](fastidious/parser.py), using the PEG syntax (which is actually used to generate the fastidious parser itself, so it's THE TRUTH. I like meta-stuff). What follows is an informal description of this syntax.
 
 Identifiers, whitespace, comments and literals follow a subset of python notation:
 
