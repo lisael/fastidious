@@ -50,7 +50,7 @@ class Calculator(Parser):
         return result
 
     def on_integer(self, value):
-        return int(self.flatten(value))
+        return int(self.p_flatten(value))
 
 if __name__ == "__main__":
     import sys

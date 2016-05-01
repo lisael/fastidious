@@ -1,5 +1,5 @@
+import re
 from types import UnboundMethodType, MethodType
-
 
 
 class ExprMixin(object):
@@ -77,8 +77,6 @@ class Expression(object):
     def method_name(self):
         return "_expr_{}_{}".format(self.rule.name, self.pos)
 
-
-import re
 
 class RegexExpr(ExprMixin):
     def __init__(self, regexp, ignore=False):
@@ -223,7 +221,7 @@ class AnyCharExpr(ExprMixin, AtomicExpr):
     def __call__(self, parser):
         self.debug(parser, "AnyCharExpr")
         parser.p_save()
-        n = parser.next()
+        n = parser.p_next()
         if n is not None:
             parser.p_discard()
             return n
@@ -237,7 +235,7 @@ class AnyCharExpr(ExprMixin, AtomicExpr):
         code = """
 # .
 self.p_save()
-n = self.next()
+n = self.p_next()
 if n is not None:
     self.p_discard()
     result = n
@@ -259,7 +257,7 @@ class LiteralExpr(ExprMixin, AtomicExpr):
         self.debug(parser, "LiteralExpr `{}`".format(self.lit))
         if self.lit == "":
             return ""
-        return parser.startswith(self.lit,
+        return parser.p_startswith(self.lit,
                                  self.ignorecase)
 
     def as_grammar(self, atomic=False):
@@ -280,7 +278,7 @@ class LiteralExpr(ExprMixin, AtomicExpr):
             return "result = ''"
         code = """
 # {2}
-result = self.startswith({0}, {1})
+result = self.p_startswith({0}, {1})
         """.format(
             repr(self.lit),
             repr(self.ignorecase),
@@ -298,7 +296,7 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
     def __call__(self, parser):
         self.debug(parser, "CharRangeExpr `{}`".format(self.chars))
         parser.p_save()
-        n = parser.next()
+        n = parser.p_next()
         if n is not None and n in self.chars:
             parser.p_discard()
             return n
@@ -319,7 +317,7 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
         code = """
 # {0}
 self.p_save()
-n = self.next()
+n = self.p_next()
 if n is not None and n in {1}:
     self.p_discard()
     result = n

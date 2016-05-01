@@ -109,13 +109,13 @@ class ParserMixin(object):
         print("{}{} `{}`".format(self._debug_indent * " ",
                                  message, repr(self.p_suffix(10))))
 
-    def peek(self):
+    def p_peek(self):
         try:
             return self.input[self.pos]
         except IndexError:
             return None
 
-    def next(self):
+    def p_next(self):
         try:
             self.pos += 1
             return self.input[self.pos - 1]
@@ -134,15 +134,15 @@ class ParserMixin(object):
         self._p_savepoint_stack.pop()
 
     @property
-    def current_line(self):
+    def p_current_line(self):
         return self.input[:self.pos].count('\n')
 
-    def parse_error(self, message):
+    def p_parse_error(self, message):
         raise ParserError(
             "Error at line %s: %s" % (self.current_line, message)
         )
 
-    def startswith(self, st, ignorecase=False):
+    def p_startswith(self, st, ignorecase=False):
         length = len(st)
         matcher = result = self.input[self.pos:self.pos+length]
         if ignorecase:
@@ -153,12 +153,12 @@ class ParserMixin(object):
             return result
         return False
 
-    def flatten(self, obj, **kwargs):
+    def p_flatten(self, obj, **kwargs):
         if isinstance(obj, basestring):
             return obj
         result = ""
         for i in obj:
-            result += self.flatten(i)
+            result += self.p_flatten(i)
         return result
 
 
@@ -177,7 +177,7 @@ class _GrammarParserMixin(object):
         return r
 
     def on_regexp_expr(self, content, lit, ignore):
-        return RegexExpr(self.flatten(lit), ignore)
+        return RegexExpr(self.p_flatten(lit), ignore)
 
     def on_grammar(self, value, rules):
         return [r[0] for r in rules]
@@ -233,10 +233,10 @@ class _GrammarParserMixin(object):
             return ZeroOrMoreExpr(expr)
 
     def on_lit_expr(self, value, lit, ignore):
-        return LiteralExpr(self.flatten(lit), ignore == "i")
+        return LiteralExpr(self.p_flatten(lit), ignore == "i")
 
     def on_char_range_expr(self, value, content, ignore):
-        content = self.flatten(content)
+        content = self.p_flatten(content)
         if ignore == "i":
             # don't use sets to avoid ordering mess
             content = content.lower()
@@ -257,7 +257,7 @@ class _GrammarParserMixin(object):
             assert starti <= endi
             return charset[starti:endi+1]
         except:
-            self.parse_error("Invalid char range : `{}`".format(self.flatten(value)))
+            self.parse_error("Invalid char range : `{}`".format(self.p_flatten(value)))
 
     _escaped = {
         "a": "\a",
@@ -272,7 +272,7 @@ class _GrammarParserMixin(object):
 
 
     def on_common_escape(self, value):
-        return self._escaped[self.flatten(value)]
+        return self._escaped[self.p_flatten(value)]
 
 
 class _GrammarParserBootstraper(Parser,
@@ -363,7 +363,7 @@ class _GrammarParserBootstraper(Parser,
                     ),
                 )
             ),
-            "flatten"
+            "p_flatten"
         ),
 
         # expression <- choice_expr
@@ -811,7 +811,7 @@ class _GrammarParserBootstraper(Parser,
                     RuleExpr("identifier_part")
                 ),
             ),
-            "flatten"
+            "p_flatten"
         ),
 
         # identifier_start <- [a-z_]i

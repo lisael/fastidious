@@ -9,7 +9,7 @@ class _GrammarParser(Parser, _GrammarParserMixin):
         rule <- name:identifier_name __ "<-" __ expr:expression code:( __ code_block )? EOS
 
         code_block <- "{" code:code "}" {@code}
-        code <- ( ( ![{}] source_char )+ / ( "{" code "}" ) )* {flatten}
+        code <- ( ( ![{}] source_char )+ / ( "{" code "}" ) )* {p_flatten}
 
         expression <- choice_expr
         choice_expr <- first:seq_expr rest:( __ "/" __ seq_expr )*
@@ -51,7 +51,7 @@ class _GrammarParser(Parser, _GrammarParserMixin):
 
         source_char <- .
         identifier <- identifier_name
-        identifier_name <- identifier_start identifier_part* {flatten}
+        identifier_name <- identifier_start identifier_part* {p_flatten}
         identifier_start <- [A-Za-z_]
         identifier_part <- identifier_start / [0-9]
 
