@@ -598,6 +598,8 @@ class Rule(ExprMixin):
 
     def as_method(self, parser):
         memoize =  parser.__memoize__
+        debug = parser.__debug___
+        globals_ = []
         if not self.action:
             default_action = "on_{}".format(self.name)
             if hasattr(parser, default_action):
@@ -606,17 +608,24 @@ class Rule(ExprMixin):
         code = """
 def new_method(self):
     # {3}
+    # -- self.p_debug("{0}")
+    # -- self._debug_indent += 1
     self.args_stack.setdefault("{0}",[]).append(dict())
 {1}
     args = self.args_stack["{0}"].pop()
     if result is not False:
         {2}
+    # -- self._debug_indent -= 1
     return result
         """.format(self.name,
                    self._indent(self.expr.as_code(memoize), 1),
                    self._action(),
                    self.as_grammar()
                    )
+        defline = "def new_method(self, {}):".format(", ".join(globals_))
+        code = "\n".join([defline, code])
+        if debug:
+            code = code.replace("# -- ", "")
         code = code.strip()
         exec(code)
         code = code.replace("new_method", self.name)

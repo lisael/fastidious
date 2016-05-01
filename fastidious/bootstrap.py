@@ -87,6 +87,8 @@ class ParserError(Exception):
 
 class ParserMixin(object):
     __memoize__ = True
+    # __debug___ = True
+    __debug___ = False
 
     def __init__(self, input):
         self.input = input
@@ -102,6 +104,10 @@ class ParserMixin(object):
         if length is not None:
             return self.input[self.pos:self.pos+length]
         return self.input[self.pos:]
+
+    def p_debug(self, message):
+        print("{}{} `{}`".format(self._debug_indent * " ",
+                                 message, repr(self.p_suffix(10))))
 
     def peek(self):
         try:
