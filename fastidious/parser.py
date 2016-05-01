@@ -3,7 +3,6 @@ from .bootstrap import Parser, _GrammarParserMixin
 
 class _GrammarParser(Parser, _GrammarParserMixin):
 
-
     __grammar__ = r"""
         grammar <- __ rules:( rule __ )+
 
@@ -14,8 +13,11 @@ class _GrammarParser(Parser, _GrammarParserMixin):
 
         expression <- choice_expr
         choice_expr <- first:seq_expr rest:( __ "/" __ seq_expr )*
-        primary_expr <- lit_expr / char_range_expr / any_char_expr / rule_expr / sub_expr
+        primary_expr <- regexp_expr / lit_expr / char_range_expr / any_char_expr / rule_expr / sub_expr
         sub_expr <- "(" __ expr:expression __ ")" {@expr}
+
+        regexp_expr <- "~" lit:string_literal ignore:"i"?
+
         lit_expr <- lit:string_literal ignore:"i"?
 
         string_literal <- ( '"' content:double_string_char* '"' ) / ( "'" content:single_string_char* "'" ) {@content}

@@ -78,6 +78,32 @@ class Expression(object):
         return "_expr_{}_{}".format(self.rule.name, self.pos)
 
 
+import re
+
+class RegexExpr(ExprMixin):
+    def __init__(self, regexp, ignore=False):
+        self.lit = regexp
+        self.ignore = ignore
+        self.re = re.compile(regexp)
+
+    def __call__(self, parser):
+        pass
+
+    def as_grammar(self, atomic=False):
+        return "~{}{}".format(repr(self.lit), self.ignore and "i" or "")
+
+    def as_code(self, memoize=False, globals_=[]):
+        globals_.append("regex=re.compile({})".format(repr(self.lit)))
+        return """
+# {0}
+m = regex.match(self.p_suffix())
+if m:
+    result = self.p_suffix(m.end())
+    self.pos += m.end()
+else:
+    result = False
+    """.format(self.as_grammar())
+
 class SeqExpr(ExprMixin):
     def __init__(self, *exprs):
         self.exprs = exprs
@@ -104,7 +130,7 @@ class SeqExpr(ExprMixin):
             return "( {} )".format(g)
         return g
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         def expressions():
             exprs = []
             for i, expr in enumerate(self.exprs):
@@ -162,7 +188,7 @@ class ChoiceExpr(ExprMixin):
             return "( {} )".format(g)
         return g
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         def expressions():
             exprs = []
             if len(self.exprs):
@@ -207,7 +233,7 @@ class AnyCharExpr(ExprMixin, AtomicExpr):
     def as_grammar(self, atomic=False):
         return "."
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = """
 # .
 self.p_save()
@@ -249,7 +275,7 @@ class LiteralExpr(ExprMixin, AtomicExpr):
             return '"{}"'.format(lit)
         return """'"'"""
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         if self.lit == "":
             return "result = ''"
         code = """
@@ -289,7 +315,7 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
         chars = chars.replace("0123456789", "0-9")
         return "[{}]".format(chars)
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = """
 # {0}
 self.p_save()
@@ -336,7 +362,7 @@ class OneOrMoreExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}+".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
             result_line = 'result = "".join(results_{})'.format(self.id)
         else:
@@ -390,7 +416,7 @@ class ZeroOrMoreExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}*".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
             result_line = 'result = "".join(results_{})'.format(self.id)
         else:
@@ -430,7 +456,7 @@ class RuleExpr(ExprMixin, AtomicExpr):
     def as_grammar(self, atomic=False):
         return self.rulename
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = "result = self.{}()".format(self.rulename)
         if memoize:
             code = self.memoize(code.strip())
@@ -453,7 +479,7 @@ class MaybeExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}?".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = """
 # {}
 {}
@@ -480,7 +506,7 @@ class FollowedBy(ExprMixin):
     def as_grammar(self, atomic=False):
         return "&{}".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = """
 # {1}
 self.p_save()
@@ -513,7 +539,7 @@ class NotFollowedBy(ExprMixin):
     def as_grammar(self, atomic=False):
         return "!{}".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = """
 # {1}
 self.p_save()
@@ -547,7 +573,7 @@ class LabeledExpr(ExprMixin, AtomicExpr):
     def as_grammar(self, atomic=False):
         return "{}:{}".format(self.name, self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False):
+    def as_code(self, memoize=False, globals_=[]):
         code = """
 # {}
 {}
@@ -589,12 +615,12 @@ class Rule(ExprMixin):
         if self.action is not None:
             if isinstance(self.action, basestring):
                 if self.action.startswith("@"):
-                    return "return args['{}']".format(self.action[1:])
+                    return "result = args['{}']".format(self.action[1:])
                 if self.action.strip() != "":
-                    return "return self.{}(result, **args)".format(
+                    return "result = self.{}(result, **args)".format(
                         self.action
                     )
-        return "return result"
+        return "pass"
 
     def as_method(self, parser):
         memoize =  parser.__memoize__
@@ -606,7 +632,6 @@ class Rule(ExprMixin):
                 self.action = default_action
 
         code = """
-def new_method(self):
     # {3}
     # -- self.p_debug("{0}")
     # -- self._debug_indent += 1
@@ -618,7 +643,7 @@ def new_method(self):
     # -- self._debug_indent -= 1
     return result
         """.format(self.name,
-                   self._indent(self.expr.as_code(memoize), 1),
+                   self._indent(self.expr.as_code(memoize, globals_), 1),
                    self._action(),
                    self.as_grammar()
                    )
@@ -640,7 +665,7 @@ def new_method(self):
     def as_grammar(self):
         if self.action == "on_{}".format(self.name):
             action = ""
-        elif isinstance(self.action, basestring):
+        elif isinstance(self.action, basestring) and len(self.action.strip()):
             action = " {%s}" % self.action
         else:
             action = ""

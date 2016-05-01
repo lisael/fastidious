@@ -176,6 +176,9 @@ class _GrammarParserMixin(object):
             r = Rule(name, expr)
         return r
 
+    def on_regexp_expr(self, content, lit, ignore):
+        return RegexExpr(self.flatten(lit), ignore)
+
     def on_grammar(self, value, rules):
         return [r[0] for r in rules]
 
