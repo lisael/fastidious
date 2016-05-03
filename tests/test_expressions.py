@@ -19,7 +19,7 @@ class ExprTestMixin(object):
         if isinstance(res, basestring):
             self.assertEquals(input[len(res):], p.p_suffix())
 
-        # test the generated method
+        # test the generated code
         oldself = self
         le = self.ExprKlass(*args)
         globs = []
@@ -134,12 +134,12 @@ class MaybeExprTest(TestCase, ExprTestMixin):
     ExprKlass = MaybeExpr
 
 
-class NotFollowedByTest(TestCase, ExprTestMixin):
-    ExprKlass = NotFollowedBy
+class NotTest(TestCase, ExprTestMixin):
+    ExprKlass = Not
 
 
-class FollowedByTest(TestCase, ExprTestMixin):
-    ExprKlass = FollowedBy
+class LookAheadTest(TestCase, ExprTestMixin):
+    ExprKlass = LookAhead
 
 
 class TestRule(TestCase):

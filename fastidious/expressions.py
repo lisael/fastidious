@@ -509,12 +509,12 @@ result = "" if result is False else result
         return code.strip()
 
 
-class FollowedBy(ExprMixin):
+class LookAhead(ExprMixin):
     def __init__(self, expr=None):
         self.expr = expr
 
     def __call__(self, parser):
-        self.debug(parser, "FollowedBy")
+        self.debug(parser, "LookAhead")
         parser._debug_indent += 1
         parser.p_save()
         result = self.expr(parser) is not False
@@ -541,12 +541,12 @@ self.p_restore()
         return code.strip()
 
 
-class NotFollowedBy(ExprMixin):
+class Not(ExprMixin):
     def __init__(self, expr=None):
         self.expr = expr
 
     def __call__(self, parser):
-        self.debug(parser, "NotFollowedBy")
+        self.debug(parser, "Not")
         parser._debug_indent += 1
         parser.p_save()
         result = self.expr(parser) is False and ""

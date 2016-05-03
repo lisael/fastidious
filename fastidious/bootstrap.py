@@ -225,9 +225,9 @@ class _GrammarParserMixin(object):
             return expr
         prefix = prefix[0]
         if prefix == "!":
-            return NotFollowedBy(expr)
+            return Not(expr)
         elif prefix == "&":
-            return FollowedBy(expr)
+            return LookAhead(expr)
 
     def on_suffixed_expr(self, value, suffix, expr):
         if not suffix:
@@ -357,7 +357,7 @@ class _GrammarParserBootstraper(Parser,
                 ChoiceExpr(
                     OneOrMoreExpr(
                         SeqExpr(
-                            NotFollowedBy(
+                            Not(
                                 CharRangeExpr("{}")
                             ),
                             RuleExpr("source_char")
@@ -481,7 +481,7 @@ class _GrammarParserBootstraper(Parser,
             "double_string_char",
             ChoiceExpr(
                 SeqExpr(
-                    NotFollowedBy(
+                    Not(
                         ChoiceExpr(
                             LiteralExpr('"'),
                             LiteralExpr('\\'),
@@ -509,7 +509,7 @@ class _GrammarParserBootstraper(Parser,
             "single_string_char",
             ChoiceExpr(
                 SeqExpr(
-                    NotFollowedBy(
+                    Not(
                         ChoiceExpr(
                             LiteralExpr("'"),
                             LiteralExpr('\\'),
@@ -588,7 +588,7 @@ class _GrammarParserBootstraper(Parser,
                     "name",
                     RuleExpr("identifier_name")
                 ),
-                NotFollowedBy(
+                Not(
                     SeqExpr(
                         RuleExpr("__"),
                         LiteralExpr("<-")
@@ -745,7 +745,7 @@ class _GrammarParserBootstraper(Parser,
             "class_char",
             ChoiceExpr(
                 SeqExpr(
-                    NotFollowedBy(
+                    Not(
                         ChoiceExpr(
                             LiteralExpr("]"),
                             LiteralExpr("\\"),
@@ -786,7 +786,7 @@ class _GrammarParserBootstraper(Parser,
                 LiteralExpr("#"),
                 ZeroOrMoreExpr(
                     SeqExpr(
-                        NotFollowedBy(
+                        Not(
                             RuleExpr("EOL")
                         ),
                         RuleExpr("source_char")
@@ -887,5 +887,5 @@ class _GrammarParserBootstraper(Parser,
         ),
 
         # EOF <- !.
-        Rule("EOF", NotFollowedBy(AnyCharExpr()))
+        Rule("EOF", Not(AnyCharExpr()))
     ]
