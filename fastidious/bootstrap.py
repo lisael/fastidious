@@ -24,6 +24,8 @@ class ParserMeta(type):
                 parser
             )
         rules = attrs.get("__rules__", [])
+        if rules:
+            attrs.setdefault("__default__", rules[0].name)
         new = super(ParserMeta, cls).__new__(cls, name, bases, attrs)
         cls.post_process_rules(new)
         for rule in rules:
@@ -76,7 +78,7 @@ class ParserMeta(type):
         stripped = "\n".join(
             [line.replace(indent, "")
              for line in lines[lno:]])
-        parser._debug=True
+        parser._debug = True
         rules = parser(stripped).grammar()
         return rules
 
@@ -161,6 +163,13 @@ class ParserMixin(object):
             result += self.p_flatten(i)
         return result
 
+    @classmethod
+    def p_parse(cls, input, methodname=None):
+        if methodname is None:
+            methodname = self.__default__
+        p = cls(input)
+        return p.getattr(methodname)()
+
 
 class Parser(ParserMixin):
     __metaclass__ = ParserMeta
@@ -168,16 +177,15 @@ class Parser(ParserMixin):
 
 class _GrammarParserMixin(object):
 
-
     def on_rule(self, value, name, expr, code):
         if code:
             r = Rule(name, expr, code[1])
-        else :
+        else:
             r = Rule(name, expr)
         return r
 
-    def on_regexp_expr(self, content, lit, ignore):
-        return RegexExpr(self.p_flatten(lit), ignore)
+    def on_regexp_expr(self, content, lit, flags):
+        return RegexExpr(self.p_flatten(lit), flags)
 
     def on_grammar(self, value, rules):
         return [r[0] for r in rules]
@@ -257,7 +265,8 @@ class _GrammarParserMixin(object):
             assert starti <= endi
             return charset[starti:endi+1]
         except:
-            self.parse_error("Invalid char range : `{}`".format(self.p_flatten(value)))
+            self.parse_error(
+                "Invalid char range : `{}`".format(self.p_flatten(value)))
 
     _escaped = {
         "a": "\a",
@@ -270,14 +279,12 @@ class _GrammarParserMixin(object):
         "\\": "\\",
     }
 
-
     def on_common_escape(self, value):
         return self._escaped[self.p_flatten(value)]
 
 
 class _GrammarParserBootstraper(Parser,
                                 _GrammarParserMixin):
-
 
     __rules__ = [
 
@@ -299,7 +306,7 @@ class _GrammarParserBootstraper(Parser,
             "on_grammar"
         ),
 
-        # rule <- name:identifier_name __ "<-" __ expr:expression code:( __ CodeBlock )? EOS
+        # rule <- name:identifier_name __ "<-" __ expr:expression code:( __ CodeBlock )? EOS  # noqa
         Rule(
             "rule",
             SeqExpr(
@@ -395,7 +402,7 @@ class _GrammarParserBootstraper(Parser,
             "on_choice_expr"
         ),
 
-        # primary_expr <- lit_expr / char_range_expr / any_char_expr / rule_expr / SemanticPredExpr / sub_expr
+        # primary_expr <- lit_expr / char_range_expr / any_char_expr / rule_expr / SemanticPredExpr / sub_expr  # noqa
         Rule(
             "primary_expr",
             ChoiceExpr(
@@ -441,7 +448,7 @@ class _GrammarParserBootstraper(Parser,
             "on_lit_expr"
         ),
 
-        # string_literal <- '"' content:double_string_char* '"' / "'" single_string_char* "'" / '`' RawStringChar '`' )
+        # string_literal <- '"' content:double_string_char* '"' / "'" single_string_char* "'" / '`' RawStringChar '`' )  # noqa
         Rule(
             "string_literal",
             ChoiceExpr(
@@ -469,7 +476,7 @@ class _GrammarParserBootstraper(Parser,
             "@content"
         ),
 
-        # double_string_char <- !( '"' / "\\" / EOL ) source_char / "\\" double_string_escape
+        # double_string_char <- !( '"' / "\\" / EOL ) source_char / "\\" double_string_escape  # noqa
         Rule(
             "double_string_char",
             ChoiceExpr(
@@ -497,7 +504,7 @@ class _GrammarParserBootstraper(Parser,
             "@char"
         ),
 
-        # single_string_char <- !( "'" / "\\" / EOL ) char:source_char / "\\" char:single_string_escape
+        # single_string_char <- !( "'" / "\\" / EOL ) char:source_char / "\\" char:single_string_escape  # noqa
         Rule(
             "single_string_char",
             ChoiceExpr(
@@ -532,7 +539,6 @@ class _GrammarParserBootstraper(Parser,
                 LiteralExpr("'"),
                 RuleExpr("common_escape")
             ),
-            #"@char"
         ),
 
         # double_string_escape <- char:'"' / char:common_escape
@@ -542,11 +548,10 @@ class _GrammarParserBootstraper(Parser,
                 LiteralExpr('"'),
                 RuleExpr("common_escape")
             ),
-            #"@char"
         ),
 
 
-        # common_escape <- single_char_escape / OctalEscape / HexEscape / LongUnicodeEscape / ShortUnicodeEscape
+        # common_escape <- single_char_escape / OctalEscape / HexEscape / LongUnicodeEscape / ShortUnicodeEscape  # noqa
         Rule(
             "common_escape",
             RuleExpr("single_char_escape"),
@@ -693,7 +698,7 @@ class _GrammarParserBootstraper(Parser,
             CharRangeExpr("!&")
         ),
 
-        # char_range_expr <- '[' content:( class_char_range / class_char / "\\" UnicodeClassEscape )* ']' ignore:'i'?
+        # char_range_expr <- '[' content:( class_char_range / class_char / "\\" UnicodeClassEscape )* ']' ignore:'i'?  # noqa
         Rule(
             "char_range_expr",
             SeqExpr(
@@ -735,7 +740,7 @@ class _GrammarParserBootstraper(Parser,
             "on_class_char_range"
         ),
 
-        # class_char <- !( "]" / "\\" / EOL ) char:source_char / "\\" char:char_class_escape
+        # class_char <- !( "]" / "\\" / EOL ) char:source_char / "\\" char:char_class_escape  # noqa
         Rule(
             "class_char",
             ChoiceExpr(
@@ -770,7 +775,7 @@ class _GrammarParserBootstraper(Parser,
                 LiteralExpr("]"),
                 RuleExpr("common_escape")
             ),
-            #"@char"
+            # "@char"
         ),
 
 
