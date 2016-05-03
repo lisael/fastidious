@@ -11,7 +11,7 @@ class ParserMock(ParserMixin):
 
 class ExprTestMixin(object):
     def expect(self, args, input, res):
-        # test the expression class __call__ meth
+        # test the expression class __call__ method
         l = self.ExprKlass(*args)
         p = ParserMock(input)
         r = l(p)
