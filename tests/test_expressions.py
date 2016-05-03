@@ -20,8 +20,11 @@ class ExprTestMixin(object):
         # test the generated method
         oldself = self
         le = self.ExprKlass(*args)
+        globs = []
+        code = le.as_code(globals_=globs)
         self = ParserMock(input)
-        exec(le.as_code())
+        exec("\n".join(globs))
+        exec(code)
         oldself.assertEquals(result, res)
         if isinstance(res, basestring):
             oldself.assertEquals(input[len(res):], self.p_suffix())
@@ -38,6 +41,15 @@ class LiteralExprTests(TestCase, ExprTestMixin):
         self.expect(("a", True), "Ab", "A")
         self.expect(("b", True), "ab", False)
         self.expect(("\\",True), '\\rest', '\\')
+
+
+class RegexExprTest(TestCase, ExprTestMixin):
+    ExprKlass = RegexExpr
+    import re
+
+    def test_regex(self):
+        self.expect(("a*",), "aab", "aa")
+        self.expect(("a*", "i"), "Aabc", "Aa")
 
 
 class CharRangeExprTest(TestCase, ExprTestMixin):

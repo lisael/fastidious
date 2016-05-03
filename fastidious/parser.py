@@ -16,7 +16,7 @@ class _GrammarParser(Parser, _GrammarParserMixin):
         primary_expr <- regexp_expr / lit_expr / char_range_expr / any_char_expr / rule_expr / sub_expr
         sub_expr <- "(" __ expr:expression __ ")" {@expr}
 
-        regexp_expr <- "~" lit:string_literal ignore:"i"?
+        regexp_expr <- "~" lit:string_literal flags:[iLmsux]*
 
         lit_expr <- lit:string_literal ignore:"i"?
 
@@ -61,4 +61,4 @@ class _GrammarParser(Parser, _GrammarParserMixin):
         EOL <- "\n"
         EOS <- ( _ comment? EOL ) / ( __ EOF )
         EOF <- !.
-    """
+    """  # noqa
