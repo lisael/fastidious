@@ -10,6 +10,7 @@ grammar = '\n'.join(
 
 kb = len(grammar) / 1024.0
 
+
 class Default(Parser):
     __grammar__ = grammar
 

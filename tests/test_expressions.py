@@ -1,5 +1,7 @@
+import re  # noqa
 from unittest import TestCase
-from fastidious.expressions import *
+
+from fastidious.expressions import *  # noqa
 from fastidious.bootstrap import ParserMixin
 
 
@@ -40,12 +42,11 @@ class LiteralExprTests(TestCase, ExprTestMixin):
         self.expect(("a", True), "ab", "a")
         self.expect(("a", True), "Ab", "A")
         self.expect(("b", True), "ab", False)
-        self.expect(("\\",True), '\\rest', '\\')
+        self.expect(("\\", True), '\\rest', '\\')
 
 
 class RegexExprTest(TestCase, ExprTestMixin):
     ExprKlass = RegexExpr
-    import re
 
     def test_regex(self):
         self.expect(("a*",), "aab", "aa")

@@ -165,7 +165,6 @@ else:
                 exprs.append(self._indent(expr_code, i))
             return "\n".join(exprs)
 
-
         code = """
 # {0}
 self.p_save()
