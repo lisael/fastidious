@@ -11,6 +11,11 @@ grammar = '\n'.join(
 kb = len(grammar) / 1024.0
 
 
+class NoCodeGen(Parser):
+    __code_gen__ = False
+    __grammar__ = grammar
+
+
 class Default(Parser):
     __grammar__ = grammar
 
@@ -24,8 +29,7 @@ class NotJSONParser(Parser):
     # __debug___ r True
     __inline__ = True
     __grammar__ = r"""
-        value <- space (string / number / object / array / true_false_null)
-                space
+        value <- _ (string / number / object / array / true_false_null) _
 
         object <- "{" members "}"
         members <- (pair ("," pair)*)?
@@ -34,22 +38,19 @@ class NotJSONParser(Parser):
         elements <- (value ("," value)*)?
         true_false_null <- "true" / "false" / "null"
 
-        string <- space "\"" chars "\"" space
-        #chars <- ( !'"' . )* {flatten}
-        chars <- ~"[^\"]*"  # TODO implement the real thing
+        string <- _ '"' chars '"' _
+        chars <- ~"[^\"]*"  # todo implement the real thing
         number <- (int frac exp) / (int exp) / (int frac) / int
         int <- "-"? ((digit1to9 digits) / digit)
         frac <- "." digits
         exp <- e digits
         digits <- digit+
-        e <- "e+" / "e-" / "e" / "E+" / "E-" / "E"
+        e <- "e+" / "e-" / "e" / "e+" / "e-" / "e"
+        # e <- ~"e[-+]?"i # faster but not in parsimonious' benchmark
 
-        # digit1to9 <- [1-9]
-        # digit <- [0-9]
-        # space <- [ \t\r\n]*
         digit1to9 <- ~"[1-9]"
         digit <- ~"[0-9]"
-        space <- ~"\\s*"
+        _ <- ~"\\s*"
 
     """
 
@@ -113,6 +114,7 @@ benchit(NotJSONParser, json, "value")
 ref = benchit(_GrammarParser, grammar, "grammar", "(base)")
 benchit(_GrammarParserBootstraper, grammar, "grammar", ref)
 ref = benchit(Default, grammar, "grammar", "(base)")
+benchit(NoCodeGen, grammar, "grammar", ref)
 benchit(NotMemoized, grammar, "grammar", ref)
 
 default = Default(grammar).grammar()
