@@ -20,9 +20,9 @@ class Calculator(Parser):
     expr <- _ first:term rest:( _ add_op _ term  )* _
 
     # there's no explicit or implicit action. These rules return their exact
-    # matches
-    add_op <- '+' / '-'
-    mult_op <- '*' / '/'
+    # matches. The alias OPERATOR is used in error messages
+    add_op "OPERATOR" <- '+' / '-'
+    mult_op "OPERATOR" <- '*' / '/'
 
     # action {@fact} means : return only the match of part labeled `fact`.
     factor <- ( '(' fact:expr ')' ) / fact:integer {@fact}
@@ -32,7 +32,7 @@ class Calculator(Parser):
 
     # this one is tricky. `.` means "any char". At EOF there's no char,
     # thus Not any char, thus `!.`
-    EOF <- !.
+    `EOF <- !.
     """
 
     def on_expr(self, value, first, rest):
@@ -54,5 +54,4 @@ class Calculator(Parser):
 
 if __name__ == "__main__":
     import sys
-    c = Calculator("".join(sys.argv[1:]))
-    print(c.eval())
+    print(Calculator.p_parse("".join(sys.argv[1:])))
