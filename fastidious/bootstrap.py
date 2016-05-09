@@ -405,15 +405,31 @@ class _GrammarParserBootstraper(Parser,
             "on_grammar"
         ),
 
-        # rule <- name:identifier_name __ "<-" __ expr:expression code:( __ CodeBlock )? EOS  # noqa
+
+        # rule <- terminal:"`"? name:identifier_name __ ( :alias _ )? "<-" __ expr:expression code:( __ code_block )? EOS  # noqa
         Rule(
             "rule",
             SeqExpr(
+                LabeledExpr(
+                    "terminal",
+                    MaybeExpr(
+                        LiteralExpr("`")
+                    ),
+                ),
                 LabeledExpr(
                     "name",
                     RuleExpr("identifier_name"),
                 ),
                 RuleExpr("__"),
+                MaybeExpr(
+                    SeqExpr(
+                        LabeledExpr(
+                            "alias",
+                            RuleExpr("alias")
+                        ),
+                        RuleExpr("_"),
+                    ),
+                ),
                 LiteralExpr("<-"),
                 RuleExpr("__"),
                 LabeledExpr(
@@ -434,6 +450,12 @@ class _GrammarParserBootstraper(Parser,
             "on_rule"
         ),
 
+        # alias <- string_literal {p_flatten}
+        Rule(
+            "alias",
+            RuleExpr("string_literal"),
+            "p_flatten"
+        ),
 
         # code_block <- "{" :code "}"
         Rule(
@@ -680,6 +702,7 @@ class _GrammarParserBootstraper(Parser,
         ),
 
         # rule_expr <- name:identifier_name !( __ "<-" )
+        # rule_expr <- name:identifier_name !( __ (string_literal __ )? "<-" )
         Rule(
             "rule_expr",
             SeqExpr(
@@ -690,6 +713,12 @@ class _GrammarParserBootstraper(Parser,
                 Not(
                     SeqExpr(
                         RuleExpr("__"),
+                        MaybeExpr(
+                            SeqExpr(
+                                RuleExpr("string_literal"),
+                                RuleExpr("__")
+                            ),
+                        ),
                         LiteralExpr("<-")
                     )
                 )
