@@ -127,9 +127,12 @@ class ParserMixin(object):
             self._p_error_stack = [(self.pos, id)]
 
 
-    def p_suffix(self, length=None):
+    def p_suffix(self, length=None, elipsis=False):
         if length is not None:
-            return self.input[self.pos:self.pos+length]
+            result = self.input[self.pos:self.pos+length]
+            if elipsis and len(result) == length:
+                result += "..."
+            return result
         return self.input[self.pos:]
 
     def p_debug(self, message):
@@ -164,14 +167,45 @@ class ParserMixin(object):
     def p_current_line(self):
         return self.input[:self.pos].count('\n')
 
+    @property
+    def p_current_col(self):
+        prefix = self.input[:self.pos]
+        nlidx = prefix.rfind('\n')
+        if nlidx == -1:
+            return self.pos
+        return self.pos - nlidx
+
+    def p_pretty_pos(self):
+        col = self.p_current_col
+        suffix = self.input[self.pos - col + 1:]
+        end = suffix.find("\n")
+        if end != -1:
+            suffix = suffix[:end]
+        return "%s\n%s" % (suffix, "-" * (col - 1) + "^")
+
     def p_parse_error(self, message):
         raise ParserError(
-            "Error at line %s: %s" % (self.p_current_line, message)
+            "Error at line %s, col %s: %s" % (self.p_current_line, self.p_current_col, message)
         )
 
-    def p_syntax_error(self, expected):
+    def p_syntax_error(self, *expected):
+        def prettify(i):
+            if i.replace("_", "").isalnum():
+                return i
+            return "`%s`" % i
+        expected = set(expected)
+        expected = [prettify(item) for item in expected]
+        expected = " or ".join(expected)
         raise ParserError(
-            "Syntax error at line %s: got `%s` expected %s " % (self.p_current_line, self.p_suffix(10), expected)
+            "Syntax error at line %s, col %s:"
+            "\n\n%s\n\n"
+            "Got `%s` expected %s "
+            "" % (
+                self.p_current_line,
+                self.p_current_col,
+                self.p_pretty_pos(),
+                self.p_suffix(10, elipsis=True).replace('\n', "\\n")  or "EOF",
+                expected)
         )
 
 
@@ -205,16 +239,34 @@ class ParserMixin(object):
         return result
 
     def p_raise(self):
+        expected = []
+        current_pos = -1
+
+        if self.__debug___:
+            print self._p_error_stack
+
+        # check aliased rules
         for pos, id in self._p_error_stack:
+            if pos < current_pos:
+                break
             expr = self.__expressions__[id]
             if expr.is_syntaxic_terminal:
-                self.pos = pos
-                return self.p_syntax_error(expr.error_message)
-        pos, id = self._p_error_stack[0]
-        expr = self.__expressions__[id]
-        self.pos = pos
-        return self.p_syntax_error(expr.error_message)
+                current_pos = pos
+                expected += expr.expected
 
+        # none found, fallback to default tips
+        if not expected:
+            current_pos = -1
+            for pos, id in self._p_error_stack:
+                if current_pos > -1 and pos < current_pos:
+                    continue
+                current_pos = pos
+                expr = self.__expressions__[id]
+                if hasattr(expr, "expr") or hasattr(expr, "exprs"):
+                    continue
+                expected += expr.expected
+        self.pos = current_pos
+        return self.p_syntax_error(*expected)
 
 
 class Parser(ParserMixin):
