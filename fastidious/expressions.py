@@ -2,11 +2,8 @@ import re
 from types import UnboundMethodType, MethodType
 
 
-class NoMatch(Exception):
-    def __init__(self, pos, rulename):
-        self.pos = pos
-        self.rulename = rulename
-
+class NoMatch(object):
+    pass
 
 class ExprMixin(object):
     last_id = 0
@@ -24,8 +21,8 @@ class ExprMixin(object):
         return m
 
     @property
-    def error_message(self):
-        return self.as_grammar()
+    def expected(self):
+        return [self.as_grammar()]
 
     def _attach_children_to(self, parser):
         for name, value in self.__dict__:
@@ -123,9 +120,6 @@ class RegexExpr(ExprMixin):
         result = parser.p_suffix(end)
         parser.pos += end
         return result
-
-    def expected(self):
-        return self.as_grammar()
 
     def as_grammar(self, atomic=False):
         return "~{}{}".format(repr(self.lit), self.flags or "")
@@ -738,11 +732,11 @@ class Rule(ExprMixin):
         return "pass"
 
     @property
-    def error_message(self):
+    def expected(self):
         if self.alias:
-            return self.alias
+            return [self.alias]
         else:
-            return self.expr.as_grammar()
+            return self.expr.expected
 
     def as_method(self, parser):
         memoize = parser.__memoize__
