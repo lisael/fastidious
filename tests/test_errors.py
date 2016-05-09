@@ -3,13 +3,12 @@ from unittest import TestCase
 
 from fastidious.expressions import *  # noqa
 from fastidious import Parser
+from fastidious import ParserError
 
 
 class ErrorHandlingTests(TestCase):
     def test_error(self):
         class Simple(Parser):
-            __code_gen__ = True
-            __debug___ = True
             __grammar__ = r"""
             calc <- num _ operator _ num EOF
             num "NUMBER" <-  frac / "-"? int
@@ -19,8 +18,7 @@ class ErrorHandlingTests(TestCase):
             _ <- [ \t\r]*
             EOF <- !.
             """
-        correct = Simple("1 + 1")
-        false = Simple("1 + 1error")
-        Simple.p_parse("1 * 1")
-        import ipdb; ipdb.set_trace()  # XXX BREAKPOINT
-
+        Simple.p_parse("1 + 1")
+        with self.assertRaisesRegexp(ParserError,
+                                     "Got `! 1` expected OPERATOR"):
+            Simple.p_parse("1 ! 1")
