@@ -12,10 +12,10 @@ class ErrorHandlingTests(TestCase):
             __debug___ = True
             __grammar__ = r"""
             calc <- num _ operator _ num EOF
-            num <-  frac / "-"? int
+            num "NUMBER" <-  frac / "-"? int
             int <- ~"[0-9]+"
             frac <- int "." int
-            `operator "OPERATOR" <- '+' / '-'
+            operator "OPERATOR" <- '+' / '-'
             _ <- [ \t\r]*
             EOF <- !.
             """
