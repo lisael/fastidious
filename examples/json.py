@@ -7,16 +7,17 @@ class JSON (Parser):
     A quick and dirty json parser. Method json() returns the object described
     by the json-encoded input:
 
-    >>> JSON.p_parse('["hello", true]"')
+    >>> JSON.p_parse('["hello", true]')
     ['hello', True]
 
-    This is an example using the well-known JSON syntax, It's by no mean intended
-    to provided a replacement of built-in json package.
+    This is an example using the well-known JSON syntax, It's by no mean
+    intended to provided a replacement of built-in json package.
     """
 
     __grammar__ = r"""
         json <- value:value EOF {@value}
-        value <- _ val:(string / number / object / array / true_false_null) _ {@val}  # noqa
+        value <- _ val:(string / number / object / array / true_false_null)
+        _ {@val}  # noqa
 
         object <- "{" :members "}"
         members <- (first:member rest:("," member)*)? {on_elements}
@@ -30,7 +31,12 @@ class JSON (Parser):
         string <- _ '"' :chars '"' _ {@chars}
         chars <- ~"[^\"]*"
 
-        number <- (int frac exp) / (int exp) / (int frac) / int
+        number <- float / integer
+
+        integer <- int
+
+        float <- (int frac exp) / (int exp) / (int frac)
+
         int <- "-"? ((digit1to9 digits) / digit)
         frac <- "." digits
         exp <- e digits
@@ -54,12 +60,19 @@ class JSON (Parser):
         return None
 
     def on_member(self, _, string, value):
-        return (string, value[1])
+        return (string, value)
 
     def on_object(self, _, members):
         return dict(members)
 
+    def on_integer(self, value):
+        return int(self.p_flatten(value))
+
+    def on_float(self, value):
+        return float(self.p_flatten(value))
+
 
 if __name__ == "__main__":
     import sys
-    print(JSON.p_parse("".join(sys.argv[1:])))
+    from pprint import pprint
+    pprint(JSON.p_parse("".join(sys.argv[1:])))
