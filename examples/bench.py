@@ -45,7 +45,7 @@ class NotJSONParser(Parser):
         frac <- "." digits
         exp <- e digits
         digits <- digit+
-        e <- "e+" / "e-" / "e" / "e+" / "e-" / "e"
+        e <- "e+" / "e-" / "e" / "E+" / "E-" / "E"
         # e <- ~"e[-+]?"i # faster but not in parsimonious' benchmark
 
         digit1to9 <- ~"[1-9]"
