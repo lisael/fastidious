@@ -5,6 +5,7 @@ from types import UnboundMethodType, MethodType
 class NoMatch(object):
     pass
 
+
 class ExprMixin(object):
     last_id = 0
 
@@ -12,22 +13,9 @@ class ExprMixin(object):
         self.is_syntaxic_terminal = kwargs.pop("terminal", False)
         self.report_errors = True
 
-    def _attach_to(self, parser):
-        m = UnboundMethodType(self, None, parser)
-        if hasattr(self, "name"):
-            setattr(parser, self.name, m)
-            if not self.action and hasattr(parser, "on_{}".format(self.name)):
-                self.action = "on_{}".format(self.name)
-        return m
-
     @property
     def expected(self):
         return [self.as_grammar()]
-
-    def _attach_children_to(self, parser):
-        for name, value in self.__dict__:
-            if isinstance(value, ExprMixin):
-                parser
 
     def visit(self, func):
         func(self)
@@ -36,7 +24,7 @@ class ExprMixin(object):
             getattr(self, "expr").visit(func)
 
     def debug(self, parser, message):
-        if parser._debug:
+        if parser.__debug___:
             print("{}{} `{}`".format(parser._debug_indent * " ",
                                      message, parser.input[
                                          parser.pos:parser.pos+5]))
@@ -95,8 +83,8 @@ else:
             pk,
             self._indent(code, 1),
             self.id,
-            repr(self.rulename
-        ))
+            repr(self.rulename)
+        )
 
 
 class AtomicExpr(object):
@@ -151,10 +139,10 @@ if m:
 else:
 {1}
     result = NoMatch
-    """.format(
-        self.as_grammar(),
-        self.report_error(1),
-    )
+        """.format(
+            self.as_grammar(),
+            self.report_error(1),
+        )
 
 
 class SeqExpr(ExprMixin):
@@ -249,14 +237,13 @@ class ChoiceExpr(ExprMixin):
     def as_code(self, memoize=False, globals_=None):
         def expressions():
             exprs = []
-            if len(self.exprs):
-                for i, expr in enumerate(self.exprs):
-                    expr_code = """
+            for i, expr in enumerate(self.exprs):
+                expr_code = """
 {}
 if result is NoMatch:
-                    """.format(expr.as_code(memoize)).strip()
-                    exprs.append(self._indent(expr_code, i))
-                exprs.append(self._indent("pass", i+1))
+                """.format(expr.as_code(memoize)).strip()
+                exprs.append(self._indent(expr_code, i))
+            exprs.append(self._indent("pass", i+1))
             return "\n".join(exprs)
 
         code = """
@@ -647,9 +634,9 @@ result = "" if result is NoMatch else NoMatch
 self.p_restore()
 if result is NoMatch:
 {2}
-else:
-    # print self._p_error_stack
-    self._p_error_stack.pop()
+#else:
+    ## print self._p_error_stack
+    #self._p_error_stack.pop()
         """.format(
             self.expr.as_code(memoize),
             self.as_grammar(),
@@ -728,6 +715,13 @@ class Rule(ExprMixin):
                 return result
         parser.p_nomatch(self.id)
         return result
+
+    def _attach_to(self, parser):
+        m = UnboundMethodType(self, None, parser)
+        setattr(parser, self.name, m)
+        if not self.action and hasattr(parser, "on_{}".format(self.name)):
+            self.action = "on_{}".format(self.name)
+        return m
 
     def _action(self):
         if self.action is not None:

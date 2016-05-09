@@ -92,7 +92,6 @@ class ParserMeta(type):
         stripped = "\n".join(
             [line.replace(indent, "")
              for line in lines[lno:]])
-        parser._debug = True
         rules = parser.p_parse(stripped)
         return rules
 
@@ -113,7 +112,6 @@ class ParserMixin(object):
         self.start = 0
         self.args_stack = {}
         self._debug_indent = 0
-        self._debug = False
         self._p_savepoint_stack = []
         self._p_memoized = {}
 
@@ -125,7 +123,6 @@ class ParserMixin(object):
             self._p_error_stack.append((self.pos, id))
         elif self.pos > head[0]:
             self._p_error_stack = [(self.pos, id)]
-
 
     def p_suffix(self, length=None, elipsis=False):
         if length is not None:
@@ -185,7 +182,11 @@ class ParserMixin(object):
 
     def p_parse_error(self, message):
         raise ParserError(
-            "Error at line %s, col %s: %s" % (self.p_current_line, self.p_current_col, message)
+            "Error at line %s, col %s: %s" % (
+                self.p_current_line,
+                self.p_current_col,
+                message
+            )
         )
 
     def p_syntax_error(self, *expected):
@@ -204,10 +205,10 @@ class ParserMixin(object):
                 self.p_current_line,
                 self.p_current_col,
                 self.p_pretty_pos(),
-                self.p_suffix(10, elipsis=True).replace('\n', "\\n")  or "EOF",
+                self.p_suffix(10, elipsis=True).replace(
+                    '\n', "\\n") or "EOF",
                 expected)
         )
-
 
     def p_startswith(self, st, ignorecase=False):
         length = len(st)

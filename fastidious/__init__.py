@@ -1,3 +1,3 @@
-from .bootstrap import Parser
+from .bootstrap import Parser, ParserError
 
-__all__ = [Parser]
+__all__ = [Parser, ParserError]
