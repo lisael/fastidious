@@ -3,7 +3,6 @@ from fastidious import Parser
 
 
 class Calculator(Parser):
-
     # __grammar__ is the PEG definition. Each `rulename <- a rule`
     # adds a method `Calculator.rulename()`. This methods tries to
     # match the input at current position
@@ -17,7 +16,7 @@ class Calculator(Parser):
 
     # Because the Parser has a method named `on_expr` ("on_" + rulename)
     # this method is the implicit action of this rule. We omitted {on_expr}
-    expr <- _ first:term rest:( _ add_op _ term  )* _
+    expr "EXPRESSION" <- _ first:term rest:( _ add_op _ term  )* _
 
     # there's no explicit or implicit action. These rules return their exact
     # matches. The alias OPERATOR is used in error messages
@@ -25,14 +24,14 @@ class Calculator(Parser):
     mult_op "OPERATOR" <- '*' / '/'
 
     # action {@fact} means : return only the match of part labeled `fact`.
-    factor <- ( '(' fact:expr ')' ) / fact:integer {@fact}
+    factor "EXPRESSION" <- ( '(' fact:expr ')' ) / fact:integer {@fact}
 
-    integer <- '-'? [0-9]+
+    integer "INT"<- '-'? [0-9]+
     _ <- [ \n\t\r]*
 
     # this one is tricky. `.` means "any char". At EOF there's no char,
     # thus Not any char, thus `!.`
-    `EOF <- !.
+    EOF <- !.
     """
 
     def on_expr(self, value, first, rest):
