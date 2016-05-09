@@ -11,6 +11,10 @@ class NoMatch(Exception):
 class ExprMixin(object):
     last_id = 0
 
+    def __init__(self, *args, **kwargs):
+        self.is_syntaxic_terminal = kwargs.pop("terminal", False)
+        self.report_errors = True
+
     def _attach_to(self, parser):
         m = UnboundMethodType(self, None, parser)
         if hasattr(self, "name"):
@@ -104,6 +108,7 @@ class Expression(object):
 
 class RegexExpr(ExprMixin):
     def __init__(self, regexp, flags=None):
+        ExprMixin.__init__(self, regexp, flags=flags)
         self.lit = regexp
         self.flags = flags or None
         self.re = re.compile(self._full_regexp())
@@ -150,9 +155,8 @@ else:
 
 class SeqExpr(ExprMixin):
     def __init__(self, *exprs, **kwargs):
-        terminal = kwargs.get("terminal", False)
+        ExprMixin.__init__(self, *exprs, **kwargs)
         self.exprs = exprs
-        self.is_syntaxic_terminal = terminal
 
     def __call__(self, parser):
         self.debug(parser, "SeqExpr")
@@ -214,9 +218,8 @@ result = results_{1}
 
 class ChoiceExpr(ExprMixin):
     def __init__(self, *exprs, **kwargs):
-        terminal = kwargs.get("terminal", False)
+        ExprMixin.__init__(self, *exprs, **kwargs)
         self.exprs = exprs
-        self.is_syntaxic_terminal = terminal
 
     def __call__(self, parser):
         self.debug(parser, "ChoiceExpr")
@@ -307,9 +310,9 @@ else:
 
 class LiteralExpr(ExprMixin, AtomicExpr):
     def __init__(self, lit, ignore=False, terminal=False):
+        ExprMixin.__init__(self, lit, ignore=ignore, terminal=terminal)
         self.lit = lit
         self.ignorecase = ignore
-        self.is_syntaxic_terminal = terminal
 
     def __call__(self, parser):
         self.debug(parser, "LiteralExpr `{}`".format(self.lit))
@@ -357,8 +360,8 @@ if not result:
 
 class CharRangeExpr(ExprMixin, AtomicExpr):
     def __init__(self, chars, terminal=False):
+        ExprMixin.__init__(self, chars, terminal=terminal)
         self.chars = chars
-        self.is_syntaxic_terminal = terminal
 
     def __call__(self, parser):
         self.debug(parser, "CharRangeExpr `{}`".format(self.chars))
@@ -405,6 +408,7 @@ else:
 
 class OneOrMoreExpr(ExprMixin):
     def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
 
     def __call__(self, parser):
@@ -467,7 +471,9 @@ else:
 
 class ZeroOrMoreExpr(ExprMixin):
     def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
+        self.expr.disable_errors()
 
     def __call__(self, parser):
         self.debug(parser, "ZeroOrMoreExpr")
@@ -517,6 +523,7 @@ self._p_error_stack.pop()
 
 class RuleExpr(ExprMixin, AtomicExpr):
     def __init__(self, rulename):
+        ExprMixin.__init__(self, rulename)
         self.rulename = rulename
 
     def __call__(self, parser):
@@ -537,7 +544,8 @@ class RuleExpr(ExprMixin, AtomicExpr):
 
 
 class MaybeExpr(ExprMixin):
-    def __init__(self, expr=None):
+    def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
 
     def __call__(self, parser):
@@ -567,7 +575,8 @@ if result is NoMatch:
 
 
 class LookAhead(ExprMixin):
-    def __init__(self, expr=None):
+    def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
 
     def __call__(self, parser):
@@ -606,9 +615,9 @@ if result is NoMatch:
 
 
 class Not(ExprMixin):
-    def __init__(self, expr=None, terminal=False):
+    def __init__(self, expr, terminal=False):
+        ExprMixin.__init__(self, expr, terminal=terminal)
         self.expr = expr
-        self.is_syntaxic_terminal = terminal
 
     def __call__(self, parser):
         self.debug(parser, "Not")
@@ -649,7 +658,9 @@ else:
 
 
 class LabeledExpr(ExprMixin, AtomicExpr):
-    def __init__(self, name, expr, rulename=None):
+    def __init__(self, name, expr, rulename=None, terminal=False):
+        ExprMixin.__init__(self, name, expr, rulename=rulename,
+                           terminal=terminal)
         self.name = name
         self.expr = expr
         self.rulename = rulename
@@ -682,12 +693,18 @@ self.args_stack[{}][-1][{}] = result
 
 class Rule(ExprMixin):
     def __init__(self, name, expr, action=None, alias=None, terminal=False):
+        ExprMixin.__init__(self, name, expr, action=action, alias=alias,
+                           terminal=terminal)
         self.name = name
         self.expr = expr
         self.action = action
         self.args_stack = []
+        if alias is NoMatch:
+            alias = None
         if alias:
             terminal = True
+        elif terminal and name.isupper():
+            alias = name
         self.alias = alias
         self.is_syntaxic_terminal = terminal
 
