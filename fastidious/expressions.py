@@ -41,6 +41,13 @@ class ExprMixin(object):
                                      message, parser.input[
                                          parser.pos:parser.pos+5]))
 
+    def disable_errors(self):
+        self.report_errors = False
+        for child in getattr(self, "exprs", []):
+            child.disable_errors()
+        if hasattr(self, "expr"):
+            self.expr.disable_errors()
+
     @property
     def id(self):
         if not hasattr(self, "_id"):
@@ -49,7 +56,10 @@ class ExprMixin(object):
         return self._id
 
     def report_error(self, indent=0):
-        code = """
+        if not self.report_errors:
+            code = "pass"
+        else:
+            code = """
 if self._p_error_stack:
     head = self._p_error_stack[0]
 else:
@@ -502,7 +512,6 @@ while 42:
     else:
         break
 # print self._p_error_stack
-self._p_error_stack.pop()
 {2}
         """.format(
             self.as_grammar(),
@@ -749,7 +758,7 @@ class Rule(ExprMixin):
 
         code = """
     # {3}
-    # -- self.p_debug("{0}")
+    # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
     self.args_stack.setdefault("{0}",[]).append(dict())
 {1}
@@ -757,17 +766,18 @@ class Rule(ExprMixin):
     if result is not NoMatch:
         {2}
         # -- self._debug_indent -= 1
-        # -- self.p_debug("{0} -- MATCH " + repr(result) )
+        # -- self.p_debug("{0}({5}) -- MATCH " + repr(result) )
     else:
 {4}
         # -- self._debug_indent -= 1
-        # -- self.p_debug("{0} -- NO MATCH")
+        # -- self.p_debug("{0}({5}) -- NO MATCH")
     return result
         """.format(self.name,
                    self._indent(self.expr.as_code(memoize, globals_), 1),
                    self._action(),
                    self.as_grammar(),
                    self.report_error(2),
+                   self.id,
                    )
         defline = "def new_method(self, {}):".format(", ".join(globals_))
         code = "\n".join([defline, code])
