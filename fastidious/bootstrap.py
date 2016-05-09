@@ -29,16 +29,17 @@ class ParserMeta(type):
         new = super(ParserMeta, cls).__new__(cls, name, bases, attrs)
         cls.post_process_rules(new)
         for rule in rules:
-            if name == "_GrammarParserBootstraper":
-                rule._attach_to(new)
-            else:
+            if getattr(new, "__code_gen__", False):
                 rule.as_method(new)
+            else:
+                rule._attach_to(new)
         return new
 
     @classmethod
     def post_process_rules(cls, newcls):
         cls.check_unknown_rules(newcls)
         cls.fix_named_rulename(newcls)
+        cls.register_exprs(newcls)
 
     @classmethod
     def fix_named_rulename(cls, newcls):
@@ -51,6 +52,19 @@ class ParserMeta(type):
 
         for r in rules:
             r.visit(partial(fix_named_visitor, r.name))
+
+    @classmethod
+    def register_exprs(cls, newcls):
+        idmap = getattr(newcls, "__expressions__", dict())
+        rules = getattr(newcls, "__rules__", [])
+
+        def register(rmap, expr):
+            rmap[expr.id] = expr
+
+        for r in rules:
+            r.visit(partial(register, idmap))
+
+        newcls.__expressions__ = idmap
 
     @classmethod
     def check_unknown_rules(cls, newcls):
@@ -79,7 +93,7 @@ class ParserMeta(type):
             [line.replace(indent, "")
              for line in lines[lno:]])
         parser._debug = True
-        rules = parser(stripped).grammar()
+        rules = parser.p_parse(stripped)
         return rules
 
 
@@ -91,6 +105,7 @@ class ParserMixin(object):
     __memoize__ = True
     # __debug___ = True
     __debug___ = False
+    __code_gen__ = True
 
     def __init__(self, input):
         self.input = input
@@ -102,9 +117,22 @@ class ParserMixin(object):
         self._p_savepoint_stack = []
         self._p_memoized = {}
 
-    def p_suffix(self, length=None):
+        self._p_error_stack = [(0, 0)]
+
+    def p_nomatch(self, id):
+        head = self._p_error_stack[0]
+        if self.pos <= head[0]:
+            self._p_error_stack.append((self.pos, id))
+        elif self.pos > head[0]:
+            self._p_error_stack = [(self.pos, id)]
+
+
+    def p_suffix(self, length=None, elipsis=False):
         if length is not None:
-            return self.input[self.pos:self.pos+length]
+            result = self.input[self.pos:self.pos+length]
+            if elipsis and len(result) == length:
+                result += "..."
+            return result
         return self.input[self.pos:]
 
     def p_debug(self, message):
@@ -139,10 +167,47 @@ class ParserMixin(object):
     def p_current_line(self):
         return self.input[:self.pos].count('\n')
 
+    @property
+    def p_current_col(self):
+        prefix = self.input[:self.pos]
+        nlidx = prefix.rfind('\n')
+        if nlidx == -1:
+            return self.pos
+        return self.pos - nlidx
+
+    def p_pretty_pos(self):
+        col = self.p_current_col
+        suffix = self.input[self.pos - col + 1:]
+        end = suffix.find("\n")
+        if end != -1:
+            suffix = suffix[:end]
+        return "%s\n%s" % (suffix, "-" * (col - 1) + "^")
+
     def p_parse_error(self, message):
         raise ParserError(
-            "Error at line %s: %s" % (self.current_line, message)
+            "Error at line %s, col %s: %s" % (self.p_current_line, self.p_current_col, message)
         )
+
+    def p_syntax_error(self, *expected):
+        def prettify(i):
+            if i.replace("_", "").isalnum():
+                return i
+            return "`%s`" % i
+        expected = set(expected)
+        expected = [prettify(item) for item in expected]
+        expected = " or ".join(expected)
+        raise ParserError(
+            "Syntax error at line %s, col %s:"
+            "\n\n%s\n\n"
+            "Got `%s` expected %s "
+            "" % (
+                self.p_current_line,
+                self.p_current_col,
+                self.p_pretty_pos(),
+                self.p_suffix(10, elipsis=True).replace('\n', "\\n")  or "EOF",
+                expected)
+        )
+
 
     def p_startswith(self, st, ignorecase=False):
         length = len(st)
@@ -164,11 +229,44 @@ class ParserMixin(object):
         return result
 
     @classmethod
-    def p_parse(cls, input, methodname=None):
+    def p_parse(cls, input, methodname=None, parse_all=True):
         if methodname is None:
-            methodname = self.__default__
+            methodname = cls.__default__
         p = cls(input)
-        return p.getattr(methodname)()
+        result = getattr(p, methodname)()
+        if result is NoMatch or parse_all and p.p_peek() is not None:
+            p.p_raise()
+        return result
+
+    def p_raise(self):
+        expected = []
+        current_pos = -1
+
+        if self.__debug___:
+            print self._p_error_stack
+
+        # check aliased rules
+        for pos, id in self._p_error_stack:
+            if pos < current_pos:
+                break
+            expr = self.__expressions__[id]
+            if expr.is_syntaxic_terminal:
+                current_pos = pos
+                expected += expr.expected
+
+        # none found, fallback to default tips
+        if not expected:
+            current_pos = -1
+            for pos, id in self._p_error_stack:
+                if current_pos > -1 and pos < current_pos:
+                    continue
+                current_pos = pos
+                expr = self.__expressions__[id]
+                if hasattr(expr, "expr") or hasattr(expr, "exprs"):
+                    continue
+                expected += expr.expected
+        self.pos = current_pos
+        return self.p_syntax_error(*expected)
 
 
 class Parser(ParserMixin):
@@ -177,11 +275,12 @@ class Parser(ParserMixin):
 
 class _GrammarParserMixin(object):
 
-    def on_rule(self, value, name, expr, code):
+    def on_rule(self, value, name, expr, code, alias=None, terminal=False):
+        terminal = terminal == '`'
         if code:
-            r = Rule(name, expr, code[1])
+            r = Rule(name, expr, code[1], alias=alias, terminal=terminal)
         else:
-            r = Rule(name, expr)
+            r = Rule(name, expr, alias=alias, terminal=terminal)
         return r
 
     def on_regexp_expr(self, content, lit, flags):
@@ -306,15 +405,31 @@ class _GrammarParserBootstraper(Parser,
             "on_grammar"
         ),
 
-        # rule <- name:identifier_name __ "<-" __ expr:expression code:( __ CodeBlock )? EOS  # noqa
+
+        # rule <- terminal:"`"? name:identifier_name __ ( :alias _ )? "<-" __ expr:expression code:( __ code_block )? EOS  # noqa
         Rule(
             "rule",
             SeqExpr(
+                LabeledExpr(
+                    "terminal",
+                    MaybeExpr(
+                        LiteralExpr("`")
+                    ),
+                ),
                 LabeledExpr(
                     "name",
                     RuleExpr("identifier_name"),
                 ),
                 RuleExpr("__"),
+                MaybeExpr(
+                    SeqExpr(
+                        LabeledExpr(
+                            "alias",
+                            RuleExpr("alias")
+                        ),
+                        RuleExpr("_"),
+                    ),
+                ),
                 LiteralExpr("<-"),
                 RuleExpr("__"),
                 LabeledExpr(
@@ -335,6 +450,12 @@ class _GrammarParserBootstraper(Parser,
             "on_rule"
         ),
 
+        # alias <- string_literal {p_flatten}
+        Rule(
+            "alias",
+            RuleExpr("string_literal"),
+            "p_flatten"
+        ),
 
         # code_block <- "{" :code "}"
         Rule(
@@ -581,6 +702,7 @@ class _GrammarParserBootstraper(Parser,
         ),
 
         # rule_expr <- name:identifier_name !( __ "<-" )
+        # rule_expr <- name:identifier_name !( __ (string_literal __ )? "<-" )
         Rule(
             "rule_expr",
             SeqExpr(
@@ -591,6 +713,12 @@ class _GrammarParserBootstraper(Parser,
                 Not(
                     SeqExpr(
                         RuleExpr("__"),
+                        MaybeExpr(
+                            SeqExpr(
+                                RuleExpr("string_literal"),
+                                RuleExpr("__")
+                            ),
+                        ),
                         LiteralExpr("<-")
                     )
                 )

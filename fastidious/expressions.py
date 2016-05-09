@@ -2,16 +2,15 @@ import re
 from types import UnboundMethodType, MethodType
 
 
-class NoMatch(Exception):
-    def __init__(self, pos, max_pos=None):
-        self.pos = pos
-        self.max_pos = max_pos
-        if max_pos is None:
-            self.max_pos = pos
-
+class NoMatch(object):
+    pass
 
 class ExprMixin(object):
     last_id = 0
+
+    def __init__(self, *args, **kwargs):
+        self.is_syntaxic_terminal = kwargs.pop("terminal", False)
+        self.report_errors = True
 
     def _attach_to(self, parser):
         m = UnboundMethodType(self, None, parser)
@@ -19,8 +18,11 @@ class ExprMixin(object):
             setattr(parser, self.name, m)
             if not self.action and hasattr(parser, "on_{}".format(self.name)):
                 self.action = "on_{}".format(self.name)
-        # self._attach_children_to(parser)
         return m
+
+    @property
+    def expected(self):
+        return [self.as_grammar()]
 
     def _attach_children_to(self, parser):
         for name, value in self.__dict__:
@@ -39,12 +41,36 @@ class ExprMixin(object):
                                      message, parser.input[
                                          parser.pos:parser.pos+5]))
 
+    def disable_errors(self):
+        self.report_errors = False
+        for child in getattr(self, "exprs", []):
+            child.disable_errors()
+        if hasattr(self, "expr"):
+            self.expr.disable_errors()
+
     @property
     def id(self):
         if not hasattr(self, "_id"):
             self._id = ExprMixin.last_id
             ExprMixin.last_id += 1
         return self._id
+
+    def report_error(self, indent=0):
+        if not self.report_errors:
+            code = "pass"
+        else:
+            code = """
+if self._p_error_stack:
+    head = self._p_error_stack[0]
+else:
+    head = (0,0)
+if self.pos <= head[0]:
+    self._p_error_stack.append((self.pos, {0}))
+elif self.pos > head[0]:
+    self._p_error_stack = [(self.pos, {0})]
+# print self._p_error_stack
+        """.format(self.id).strip()
+        return self._indent(code, indent)
 
     def _indent(self, code, space):
         ind = " " * space * 4
@@ -69,7 +95,8 @@ else:
             pk,
             self._indent(code, 1),
             self.id,
-        )
+            repr(self.rulename
+        ))
 
 
 class AtomicExpr(object):
@@ -88,6 +115,7 @@ class Expression(object):
 
 class RegexExpr(ExprMixin):
     def __init__(self, regexp, flags=None):
+        ExprMixin.__init__(self, regexp, flags=flags)
         self.lit = regexp
         self.flags = flags or None
         self.re = re.compile(self._full_regexp())
@@ -96,7 +124,8 @@ class RegexExpr(ExprMixin):
         self.debug(parser, "RegexExpr `{}`".format(self.lit))
         m = self.re.match(parser.p_suffix())
         if m is None:
-            return False
+            parser.p_nomatch(self.id)
+            return NoMatch
         end = m.end()
         result = parser.p_suffix(end)
         parser.pos += end
@@ -120,12 +149,17 @@ if m:
     result = self.p_suffix(m.end())
     self.pos += m.end()
 else:
-    result = False
-    """.format(self.as_grammar())
+{1}
+    result = NoMatch
+    """.format(
+        self.as_grammar(),
+        self.report_error(1),
+    )
 
 
 class SeqExpr(ExprMixin):
-    def __init__(self, *exprs):
+    def __init__(self, *exprs, **kwargs):
+        ExprMixin.__init__(self, *exprs, **kwargs)
         self.exprs = exprs
 
     def __call__(self, parser):
@@ -135,10 +169,11 @@ class SeqExpr(ExprMixin):
         results = []
         for expr in self.exprs:
             res = expr(parser)
-            if res is False:
+            if res is NoMatch:
                 parser.p_restore()
+                parser.p_nomatch(self.id)
                 parser._debug_indent -= 1
-                return False
+                return NoMatch
             results.append(res)
         parser._debug_indent -= 1
         parser.p_discard()
@@ -156,12 +191,14 @@ class SeqExpr(ExprMixin):
             for i, expr in enumerate(self.exprs):
                 expr_code = """
 {0}
-if result is False:
-    results_{1} = False
+if result is NoMatch:
+    results_{1} = NoMatch
     self.p_restore()
+{2}
 else:
     results_{1}.append(result)
-                    """.format(expr.as_code(memoize), self.id).strip()
+                    """.format(expr.as_code(memoize), self.id,
+                               self.report_error(1)).strip()
                 exprs.append(self._indent(expr_code, i))
             return "\n".join(exprs)
 
@@ -170,7 +207,7 @@ else:
 self.p_save()
 results_{1} = []
 {2}
-if results_{1} is not False:
+if results_{1} is not NoMatch:
     self.p_discard()
 result = results_{1}
         """.format(
@@ -184,7 +221,8 @@ result = results_{1}
 
 
 class ChoiceExpr(ExprMixin):
-    def __init__(self, *exprs):
+    def __init__(self, *exprs, **kwargs):
+        ExprMixin.__init__(self, *exprs, **kwargs)
         self.exprs = exprs
 
     def __call__(self, parser):
@@ -193,13 +231,14 @@ class ChoiceExpr(ExprMixin):
         parser.p_save()
         for expr in self.exprs:
             res = expr(parser)
-            if res is not False:
+            if res is not NoMatch:
                 parser._debug_indent -= 1
                 parser.p_discard()
                 return res
         parser._debug_indent -= 1
         parser.p_restore()
-        return False
+        parser.p_nomatch(self.id)
+        return NoMatch
 
     def as_grammar(self, atomic=False):
         g = " / ".join([e.as_grammar(True) for e in self.exprs])
@@ -214,7 +253,7 @@ class ChoiceExpr(ExprMixin):
                 for i, expr in enumerate(self.exprs):
                     expr_code = """
 {}
-if result is False:
+if result is NoMatch:
                     """.format(expr.as_code(memoize)).strip()
                     exprs.append(self._indent(expr_code, i))
                 exprs.append(self._indent("pass", i+1))
@@ -223,15 +262,17 @@ if result is False:
         code = """
 # {1}
 self.p_save()
-result = False
+result = NoMatch
 {0}
-if result is False:
+if result is NoMatch:
     self.p_restore()
+{2}
 else:
     self.p_discard()
         """.format(
             expressions(),
-            self.as_grammar()
+            self.as_grammar(),
+            self.report_error(1)
         )
         if memoize:
             code = self.memoize(code.strip())
@@ -247,7 +288,8 @@ class AnyCharExpr(ExprMixin, AtomicExpr):
             parser.p_discard()
             return n
         parser.p_restore()
-        return False
+        parser.p_nomatch(self.id)
+        return NoMatch
 
     def as_grammar(self, atomic=False):
         return "."
@@ -262,15 +304,17 @@ if n is not None:
     result = n
 else:
     self.p_restore()
-    result = False
-        """
+{}
+    result = NoMatch
+        """.format(self.report_error(1))
         if memoize:
             code = self.memoize(code.strip())
         return code.strip()
 
 
 class LiteralExpr(ExprMixin, AtomicExpr):
-    def __init__(self, lit, ignore=False):
+    def __init__(self, lit, ignore=False, terminal=False):
+        ExprMixin.__init__(self, lit, ignore=ignore, terminal=terminal)
         self.lit = lit
         self.ignorecase = ignore
 
@@ -278,8 +322,12 @@ class LiteralExpr(ExprMixin, AtomicExpr):
         self.debug(parser, "LiteralExpr `{}`".format(self.lit))
         if self.lit == "":
             return ""
-        return parser.p_startswith(self.lit,
-                                   self.ignorecase)
+        result = parser.p_startswith(self.lit,
+                                     self.ignorecase)
+        if not result:
+            parser.p_nomatch(self.id)
+            return NoMatch
+        return result
 
     def as_grammar(self, atomic=False):
         lit = self.lit.replace("\\", "\\\\")
@@ -300,10 +348,14 @@ class LiteralExpr(ExprMixin, AtomicExpr):
         code = """
 # {2}
 result = self.p_startswith({0}, {1})
+if not result:
+{3}
+    result = NoMatch
         """.format(
             repr(self.lit),
             repr(self.ignorecase),
-            self.as_grammar()
+            self.as_grammar(),
+            self.report_error(1)
         )
         if memoize:
             code = self.memoize(code.strip())
@@ -311,7 +363,8 @@ result = self.p_startswith({0}, {1})
 
 
 class CharRangeExpr(ExprMixin, AtomicExpr):
-    def __init__(self, chars):
+    def __init__(self, chars, terminal=False):
+        ExprMixin.__init__(self, chars, terminal=terminal)
         self.chars = chars
 
     def __call__(self, parser):
@@ -322,7 +375,8 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
             parser.p_discard()
             return n
         parser.p_restore()
-        return False
+        parser.p_nomatch(self.id)
+        return NoMatch
 
     def as_grammar(self, atomic=False):
         chars = self.chars.replace("0123456789", "0-9")
@@ -344,10 +398,12 @@ if n is not None and n in {1}:
     result = n
 else:
     self.p_restore()
-    result = False
+{2}
+    result = NoMatch
         """.format(
                 self.as_grammar(),
                 repr(self.chars),
+                self.report_error(1),
             )
         if memoize:
             code = self.memoize(code.strip())
@@ -356,6 +412,7 @@ else:
 
 class OneOrMoreExpr(ExprMixin):
     def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
 
     def __call__(self, parser):
@@ -365,14 +422,15 @@ class OneOrMoreExpr(ExprMixin):
         results = []
         while 42:
             r = self.expr(parser)
-            if r is not False:
+            if r is not NoMatch:
                 results.append(r)
             else:
                 break
         parser._debug_indent -= 1
         if not results:
             parser.p_restore()
-            return False
+            parser.p_nomatch(self.id)
+            return NoMatch
         if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
             results = "".join(results)
         parser.p_discard()
@@ -392,13 +450,14 @@ self.p_save()
 results_{3} = []
 while 42:
 {1}
-    if result is not False:
+    if result is not NoMatch:
         results_{3}.append(result)
     else:
         break
 if not results_{3}:
     self.p_restore()
-    result = False
+{4}
+    result = NoMatch
 else:
     self.p_discard()
     {2}
@@ -407,6 +466,7 @@ else:
             self._indent(self.expr.as_code(memoize), 1),
             result_line,
             self.id,
+            self.report_error(1)
         )
         if memoize:
             code = self.memoize(code.strip())
@@ -415,7 +475,9 @@ else:
 
 class ZeroOrMoreExpr(ExprMixin):
     def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
+        self.expr.disable_errors()
 
     def __call__(self, parser):
         self.debug(parser, "ZeroOrMoreExpr")
@@ -423,7 +485,7 @@ class ZeroOrMoreExpr(ExprMixin):
         results = []
         while 42:
             r = self.expr(parser)
-            if r is not False:
+            if r is not NoMatch:
                 results.append(r)
             else:
                 break
@@ -445,10 +507,11 @@ class ZeroOrMoreExpr(ExprMixin):
 results_{3} = []
 while 42:
 {1}
-    if result is not False:
+    if result is not NoMatch:
         results_{3}.append(result)
     else:
         break
+# print self._p_error_stack
 {2}
         """.format(
             self.as_grammar(),
@@ -463,6 +526,7 @@ while 42:
 
 class RuleExpr(ExprMixin, AtomicExpr):
     def __init__(self, rulename):
+        ExprMixin.__init__(self, rulename)
         self.rulename = rulename
 
     def __call__(self, parser):
@@ -483,7 +547,8 @@ class RuleExpr(ExprMixin, AtomicExpr):
 
 
 class MaybeExpr(ExprMixin):
-    def __init__(self, expr=None):
+    def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
 
     def __call__(self, parser):
@@ -491,8 +556,8 @@ class MaybeExpr(ExprMixin):
         parser._debug_indent += 1
         result = self.expr(parser)
         parser._debug_indent -= 1
-        if result is False:
-            return ""
+        if result is NoMatch:
+            result = ""
         return result
 
     def as_grammar(self, atomic=False):
@@ -502,7 +567,10 @@ class MaybeExpr(ExprMixin):
         code = """
 # {}
 {}
-result = "" if result is False else result
+result = "" if result is NoMatch else result
+if result is NoMatch:
+    # print self._p_error_stack
+    self._p_error_stack.pop()
         """.format(self.as_grammar(), self.expr.as_code(memoize))
         if memoize:
             code = self.memoize(code.strip())
@@ -510,14 +578,19 @@ result = "" if result is False else result
 
 
 class LookAhead(ExprMixin):
-    def __init__(self, expr=None):
+    def __init__(self, expr):
+        ExprMixin.__init__(self, expr)
         self.expr = expr
 
     def __call__(self, parser):
         self.debug(parser, "LookAhead")
         parser._debug_indent += 1
         parser.p_save()
-        result = self.expr(parser) is not False
+        if self.expr(parser) is not NoMatch:
+            result = ""
+        else:
+            parser.p_nomatch(self.id)
+            result = NoMatch
         parser.p_restore()
         parser._debug_indent -= 1
         return result
@@ -530,11 +603,14 @@ class LookAhead(ExprMixin):
 # {1}
 self.p_save()
 {0}
-result = result is not False
+result = result if result is NoMatch else ""
 self.p_restore()
+if result is NoMatch:
+{2}
         """.format(
             self.expr.as_code(memoize),
             self.as_grammar(),
+            self.report_error(1)
         )
         if memoize:
             code = self.memoize(code.strip())
@@ -542,14 +618,19 @@ self.p_restore()
 
 
 class Not(ExprMixin):
-    def __init__(self, expr=None):
+    def __init__(self, expr, terminal=False):
+        ExprMixin.__init__(self, expr, terminal=terminal)
         self.expr = expr
 
     def __call__(self, parser):
         self.debug(parser, "Not")
         parser._debug_indent += 1
         parser.p_save()
-        result = self.expr(parser) is False and ""
+        if self.expr(parser) is not NoMatch:
+            parser.p_nomatch(self.id)
+            result = NoMatch
+        else:
+            result = ""
         parser.p_restore()
         parser._debug_indent -= 1
         return result
@@ -562,11 +643,17 @@ class Not(ExprMixin):
 # {1}
 self.p_save()
 {0}
-result = result is False and ""
+result = "" if result is NoMatch else NoMatch
 self.p_restore()
+if result is NoMatch:
+{2}
+else:
+    # print self._p_error_stack
+    self._p_error_stack.pop()
         """.format(
             self.expr.as_code(memoize),
             self.as_grammar(),
+            self.report_error(1)
         )
         if memoize:
             code = self.memoize(code.strip())
@@ -574,7 +661,9 @@ self.p_restore()
 
 
 class LabeledExpr(ExprMixin, AtomicExpr):
-    def __init__(self, name, expr, rulename=None):
+    def __init__(self, name, expr, rulename=None, terminal=False):
+        ExprMixin.__init__(self, name, expr, rulename=rulename,
+                           terminal=terminal)
         self.name = name
         self.expr = expr
         self.rulename = rulename
@@ -606,18 +695,28 @@ self.args_stack[{}][-1][{}] = result
 
 
 class Rule(ExprMixin):
-    def __init__(self, name, expr, action=None):
+    def __init__(self, name, expr, action=None, alias=None, terminal=False):
+        ExprMixin.__init__(self, name, expr, action=action, alias=alias,
+                           terminal=terminal)
         self.name = name
         self.expr = expr
         self.action = action
         self.args_stack = []
+        if alias is NoMatch:
+            alias = None
+        if alias:
+            terminal = True
+        elif terminal and name.isupper():
+            alias = name
+        self.alias = alias
+        self.is_syntaxic_terminal = terminal
 
     def __call__(self, parser):
         self.args_stack.append({})
         result = self.expr(parser)
         args = self.args_stack.pop()
 
-        if result is not False:
+        if result is not NoMatch:
             if self.action is not None:
                 if isinstance(self.action, basestring):
                     if self.action.startswith("@"):
@@ -627,7 +726,8 @@ class Rule(ExprMixin):
                 return self.action(parser, result, **args)
             else:
                 return result
-        return False
+        parser.p_nomatch(self.id)
+        return result
 
     def _action(self):
         if self.action is not None:
@@ -640,6 +740,13 @@ class Rule(ExprMixin):
                     )
         return "pass"
 
+    @property
+    def expected(self):
+        if self.alias:
+            return [self.alias]
+        else:
+            return self.expr.expected
+
     def as_method(self, parser):
         memoize = parser.__memoize__
         debug = parser.__debug___
@@ -651,19 +758,26 @@ class Rule(ExprMixin):
 
         code = """
     # {3}
-    # -- self.p_debug("{0}")
+    # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
     self.args_stack.setdefault("{0}",[]).append(dict())
 {1}
     args = self.args_stack["{0}"].pop()
-    if result is not False:
+    if result is not NoMatch:
         {2}
-    # -- self._debug_indent -= 1
+        # -- self._debug_indent -= 1
+        # -- self.p_debug("{0}({5}) -- MATCH " + repr(result) )
+    else:
+{4}
+        # -- self._debug_indent -= 1
+        # -- self.p_debug("{0}({5}) -- NO MATCH")
     return result
         """.format(self.name,
                    self._indent(self.expr.as_code(memoize, globals_), 1),
                    self._action(),
-                   self.as_grammar()
+                   self.as_grammar(),
+                   self.report_error(2),
+                   self.id,
                    )
         defline = "def new_method(self, {}):".format(", ".join(globals_))
         code = "\n".join([defline, code])

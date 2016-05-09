@@ -11,6 +11,11 @@ grammar = '\n'.join(
 kb = len(grammar) / 1024.0
 
 
+class NoCodeGen(Parser):
+    __code_gen__ = False
+    __grammar__ = grammar
+
+
 class Default(Parser):
     __grammar__ = grammar
 
@@ -40,7 +45,7 @@ class NotJSONParser(Parser):
         frac <- "." digits
         exp <- e digits
         digits <- digit+
-        e <- "e+" / "e-" / "e" / "e+" / "e-" / "e"
+        e <- "e+" / "e-" / "e" / "E+" / "E-" / "E"
         # e <- ~"e[-+]?"i # faster but not in parsimonious' benchmark
 
         digit1to9 <- ~"[1-9]"
@@ -109,6 +114,7 @@ benchit(NotJSONParser, json, "value")
 ref = benchit(_GrammarParser, grammar, "grammar", "(base)")
 benchit(_GrammarParserBootstraper, grammar, "grammar", ref)
 ref = benchit(Default, grammar, "grammar", "(base)")
+benchit(NoCodeGen, grammar, "grammar", ref)
 benchit(NotMemoized, grammar, "grammar", ref)
 
 default = Default(grammar).grammar()

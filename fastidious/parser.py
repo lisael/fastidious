@@ -6,12 +6,14 @@ class _GrammarParser(Parser, _GrammarParserMixin):
     __grammar__ = r"""
         grammar <- __ rules:( rule __ )+
 
-        rule <- name:identifier_name __ "<-" __ expr:expression code:( __ code_block )? EOS
+        rule "RULE" <- terminal:"`"? name:identifier_name __ ( :alias _ )? "<-" __ expr:expression code:( __ code_block )? EOS
 
-        code_block <- "{" code:code "}" {@code}
+        code_block "CODE_BLOCK" <- "{" code:code "}" {@code}
         code <- ( ( ![{}] source_char )+ / ( "{" code "}" ) )* {p_flatten}
 
-        expression <- choice_expr
+        alias "ALIAS" <- string_literal {p_flatten}
+
+        expression "EXPRESSION" <- choice_expr
         choice_expr <- first:seq_expr rest:( __ "/" __ seq_expr )*
         primary_expr <- regexp_expr / lit_expr / char_range_expr / any_char_expr / rule_expr / sub_expr
         sub_expr <- "(" __ expr:expression __ ")" {@expr}
@@ -28,7 +30,7 @@ class _GrammarParser(Parser, _GrammarParserMixin):
 
         any_char_expr <- "."
 
-        rule_expr <- name:identifier_name !( __ "<-" )
+        rule_expr <- name:identifier_name !( __ (string_literal __ )? "<-" )
 
         seq_expr <- first:labeled_expr rest:( __ labeled_expr )*
 
