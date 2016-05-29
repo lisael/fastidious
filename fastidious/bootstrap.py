@@ -19,10 +19,19 @@ class ParserMeta(type):
             else:
                 from .parser import _GrammarParser
                 parser = _GrammarParser
-            attrs["__rules__"] = cls.parse_grammar(
-                attrs["__grammar__"],
-                parser
-            )
+            attrs.setdefault("__rules__", [])
+            for base in bases:
+                attrs["__rules__"] = cls.merge_rules(
+                        attrs["__rules__"],
+                        getattr(base, "__rules__", [])
+                )
+            new_rules = cls.parse_grammar(
+                        attrs["__grammar__"],
+                        parser
+                    )
+            attrs.setdefault("__default__", new_rules[0].name)
+            attrs["__rules__"] = cls.merge_rules(attrs["__rules__"],
+                                                 new_rules)
         rules = attrs.get("__rules__", [])
         if rules:
             attrs.setdefault("__default__", rules[0].name)
@@ -34,6 +43,19 @@ class ParserMeta(type):
             else:
                 rule._attach_to(new)
         return new
+
+    @classmethod
+    def merge_rules(cls, dest, src):
+        names = [r.name for r in dest]
+
+        def remove_rule(name):
+            result = [r for r in dest if r.name != name]
+            return result
+        for rsrc in src:
+            if rsrc.name in names:
+                dest = remove_rule(rsrc.name)
+            dest.append(rsrc)
+        return dest
 
     @classmethod
     def post_process_rules(cls, newcls):
@@ -125,6 +147,7 @@ class ParserMixin(object):
             self._p_error_stack = [(self.pos, id)]
 
     def p_suffix(self, length=None, elipsis=False):
+        "Return the rest of the input"
         if length is not None:
             result = self.input[self.pos:self.pos+length]
             if elipsis and len(result) == length:
@@ -133,16 +156,19 @@ class ParserMixin(object):
         return self.input[self.pos:]
 
     def p_debug(self, message):
+        "Format and print debug messages"
         print("{}{} `{}`".format(self._debug_indent * " ",
                                  message, repr(self.p_suffix(10))))
 
     def p_peek(self):
+        "return the next char, w/o consuming it"
         try:
             return self.input[self.pos]
         except IndexError:
             return None
 
     def p_next(self):
+        "Consume and return the next char"
         try:
             self.pos += 1
             return self.input[self.pos - 1]
@@ -150,22 +176,28 @@ class ParserMixin(object):
             return None
 
     def p_save(self):
+        "Push a savepoint on the stack (internal use)"
         self._p_savepoint_stack.append((self.pos, self.start))
-        # return (self.pos, self.start)
 
     def p_restore(self):
+        """
+        Pop a savepoint on the stack, and restore the parser state
+        (internal use)
+        """
         self.pos, self.start = self._p_savepoint_stack.pop()
-        # self.pos, self.start = savepoint
 
     def p_discard(self):
+        "Pop and forget a savepoint (internal use)"
         self._p_savepoint_stack.pop()
 
     @property
     def p_current_line(self):
+        "Return current line number"
         return self.input[:self.pos].count('\n')
 
     @property
     def p_current_col(self):
+        "Return currnet column in line"
         prefix = self.input[:self.pos]
         nlidx = prefix.rfind('\n')
         if nlidx == -1:
@@ -173,6 +205,7 @@ class ParserMixin(object):
         return self.pos - nlidx
 
     def p_pretty_pos(self):
+        "Print current line and a pretty cursor below. Used in error messages"
         col = self.p_current_col
         suffix = self.input[self.pos - col + 1:]
         end = suffix.find("\n")
@@ -211,6 +244,7 @@ class ParserMixin(object):
         )
 
     def p_startswith(self, st, ignorecase=False):
+        "Return True if the input starts with `st` at current position"
         length = len(st)
         matcher = result = self.input[self.pos:self.pos+length]
         if ignorecase:
@@ -222,6 +256,21 @@ class ParserMixin(object):
         return False
 
     def p_flatten(self, obj, **kwargs):
+        """ Flatten a list of lists of lists... of strings into a string
+
+        This is usually used as the action for sequence expressions:
+
+        .. code-block::
+
+            my_rule <- 'a' . 'c' { p_flatten }
+
+        With the input "abc" and no action, this rule returns [ 'a', 'b', 'c'].
+        { p_flatten } procuces "abc".
+
+        >>> parser.p_flatten(['a', ['b', 'c']])
+        'abc'
+
+        """
         if isinstance(obj, basestring):
             return obj
         result = ""
@@ -231,6 +280,12 @@ class ParserMixin(object):
 
     @classmethod
     def p_parse(cls, input, methodname=None, parse_all=True):
+        """
+        Parse the `input` using `methodname` as entry point.
+
+        If `parse_all` is true, the input MUST be fully consumed at the end of
+        the parsing, otherwise p_parse raises an exception.
+        """
         if methodname is None:
             methodname = cls.__default__
         p = cls(input)
@@ -271,6 +326,9 @@ class ParserMixin(object):
 
 
 class Parser(ParserMixin):
+    """
+    Base class for parsers. It calls the metaclass that generates the code
+    """
     __metaclass__ = ParserMeta
 
 

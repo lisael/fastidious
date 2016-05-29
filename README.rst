@@ -1,6 +1,7 @@
 ==========
 Fastidious
 ==========
+
 A python `parsing expression grammar
 (PEG) <https://en.wikipedia.org/wiki/Parsing_expression_grammar>`_ based parser
 generator.  It is loosely based on https://github.com/PuerkitoBio/pigeon
@@ -65,12 +66,18 @@ From `the calculator example
                 return result
 
             def on_integer(self, value):
-                return int(self.flatten(value))
+                return int(self.p_flatten(value))
 
         if __name__ == "__main__":
             import sys
             c = Calculator("".join(sys.argv[1:]))
-            print(c.eval())
+            result = c.eval()
+            # because eval is the first rule defined in the grammar, it's the default rule.
+            # We could call the classmethod `p_parse`:
+            # result = Calculator.p_parse("".join(sys.argv[1:]))
+            # The default entry point can be overriden setting the class attribute
+            # `__default__`
+            print(result)
 
 Then you have a full-fledge state-of-the-art integer only calculator \o/
 
@@ -78,6 +85,33 @@ Then you have a full-fledge state-of-the-art integer only calculator \o/
 
         examples/calculator.py "-21 *  ( 3 + 1 ) / -2"
         42
+
+Inheritance
++++++++++++
+
+A parser can inherit rules. Here's an example from fastidious tests:
+
+.. code-block:: python
+
+        class Parent(Parser):
+            __grammar__ = r"""
+            some_as <- 'a'+
+            """
+
+
+        class Child(Parent):
+            __grammar__ = r"""
+            letters <- some_as some_bs EOF {p_flatten}
+            some_bs <- 'b'+
+            EOF <- !.
+            """
+
+        assert(Child.p_parse("aabb") == "aabb")
+
+Here, ``Child`` has inherited the method the rule ``some_as``.
+
+Rules can also be overridden in child parsers. 
+
 
 PEG Syntax
 ==========
