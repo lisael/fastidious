@@ -126,6 +126,7 @@ parsers.
 At the moment, there's only URLParser, that provides a rule that match URLs and
 outputs an ``urlparse.ParseResult`` on match.
 
+Please send a pull request if you made an interesting piece of code :)
 
 PEG Syntax
 ==========
