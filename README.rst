@@ -11,6 +11,8 @@ Usage
 
 From `the calculator example
 <https://github.com/lisael/fastidious/blob/master/examples/calculator.py>`_.
+To read the example, think regex, except that the OR spells ``/``, that
+literal chars are in quotes and that we can reference other rules.
 
 .. code-block:: python
 
@@ -127,7 +129,6 @@ notation:
 
 .. code-block::
 
-
         # a comment
         'a string literal'
         "a more \"complex\" one with a litteral '\\' \nand a second line"
@@ -149,6 +150,83 @@ specified after the rule identifier. An action can also be specified enclosed in
 .. code-block::
 
         rule_a "friendly name" <- 'a'+ {an_action} # one or more lowercase 'a's
+
+Actions
++++++++
+
+Actions are a way to alter the output of a rule. Without actions the rules emit
+strings, lists of strings, or a list of lists and strings.
+
+Action are useful to control the output. One could for example instantiate AST
+nodes, or, as we do in the JSON example, our result string, lists and dicts.
+
+Actions can also be used to reduce the result as the input is parsed, that's
+exactly what we do in the calculator example in the method ``on_expr``.
+
+There are two kind of actions: labels and methods
+
+Label action
+------------
+
+If an expression has a label, you can use it as the return value. In the calculator,
+we use::
+
+            factor <- ( '(' fact:expr ')' ) / fact:integer {@fact}
+
+Here, ``@fact`` means 'return the part labeled ``fact``' which is an integer literal
+or the result of an ``expr`` enclosed in parentheses, depending on the branch that
+matches.
+
+All the rest (e.g the parentheses) of the match is never output and is lost.
+
+Method action
+-------------
+
+Method actions are methods on the parser. In the calculator, there's::
+
+            term <- first:factor rest:( _ mult_op _ factor )* {on_expr}
+
+This means that on match, the method of the parser named ``on_expr`` is called
+with one positional argument: ``value`` and two keyword arguments: ``first`` and
+``rest`` named after the labels in the expression.
+
+``value`` is the full value of the match, something like::
+
+        [ 2 [ " ", "*", "", 3]]
+
+``first`` would be ``2`` and ``rest`` would be ``[ " ", "*", "", 3]``. 
+
+I hope the indices of ``r`` in this method make sense, now:
+
+.. code-block:: python
+
+            def on_expr(self, value, first, rest):
+                result = first
+                for r in rest:
+                    op = r[1]
+                    if op == '+':
+                        result += r[3]
+                    elif op == '-':
+                        result -= r[3]
+                    elif op == '*':
+                        result *= r[3]
+                    else:
+                        result /= r[3]
+                return result
+
+Note that even though the rule ``_`` has the Kleen star ``*`` it will at least
+return an empty string, so ``rest`` is guaranteed to be a 4 elements list.
+
+Because of its name, ``on_expr`` is also the implicit action of the rule ``expr``.
+This can of course be overridden by adding an explicit action on the rule
+
+Builtin method actions
+......................
+
+At the moment, there's one builtin action ``{{p_flatten}}`` that recursively
+concatenates a list of lists and strings::
+
+        ["a", ["b", ["c", "d"], "e"], "fg"] => "abcdefg"
 
 Expressions
 +++++++++++
