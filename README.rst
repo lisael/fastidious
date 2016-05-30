@@ -393,7 +393,4 @@ TODO
 ====
 
 - make a tool to generate standalone modules
-- python3
 - more tests
-- tox
-- travis
