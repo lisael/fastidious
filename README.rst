@@ -112,7 +112,19 @@ A parser can inherit rules. Here's an example from fastidious tests:
 
 Here, ``Child`` has inherited the method the rule ``some_as``.
 
-Rules can also be overridden in child parsers. 
+Rules can also be overridden in child parsers.
+
+Note that there's no overhead in inheritance at parsing as the rules from the parent
+are copied into the child.
+
+Contrib
+-------
+
+I plan to add a set of reusable rules in ``fastidious.contrib`` to compose your
+parsers.
+
+At the moment, there's only URLParser, that provides a rule that match URLs and
+outputs an ``urlparse.ParseResult`` on match.
 
 
 PEG Syntax
