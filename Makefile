@@ -11,9 +11,11 @@ test: flake _test
 
 vtest: flake _vtest
 
-cov:
+_cov: 
 	nosetests -s --with-cover --cover-html --cover-branches --cover-html-dir ./coverage ./tests/
 	@echo "open file://`pwd`/coverage/index.html"
+
+cov: flake _cov
 
 clean:
 	rm -rf `find . -name __pycache__`
@@ -33,4 +35,4 @@ doc:
 	make -C docs html
 	@echo "open file://`pwd`/docs/_build/html/index.html"
 
-.PHONY: all build venv flake test vtest cov clean doc _test _vtest
+.PHONY: all build venv flake test vtest _cov cov clean doc _test _vtest
