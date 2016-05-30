@@ -3,7 +3,8 @@ python:
   - "2.7"
   - "pypy"
 # command to install dependencies
-install: "pip install -r requirements.txt"
-install: "pip install flake8"
+install:
+  - pip install flake8
+  - pip install coverage
 # command to run tests
 script: make cov
