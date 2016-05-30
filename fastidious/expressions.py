@@ -1,6 +1,11 @@
 import re
 from types import UnboundMethodType, MethodType
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
 
 class NoMatch(object):
     pass

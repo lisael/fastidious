@@ -107,8 +107,8 @@ def benchit(klass, source, entry_point, ref=None):
         var = ""
 
     kb = len(source) / 1024.0
-    print '%-25s: Took %.3fs to parse %.1fKB: %.0fKB/s %s' % (
-        klass.__name__, seconds_each, kb, kb / seconds_each, var)
+    print('%-25s: Took %.3fs to parse %.1fKB: %.0fKB/s %s' % (
+        klass.__name__, seconds_each, kb, kb / seconds_each, var))
     return seconds_each
 
 benchit(NotJSONParser, json, "value")

@@ -299,7 +299,7 @@ class ParserMixin(object):
         current_pos = -1
 
         if self.__debug___:
-            print self._p_error_stack
+            print(self._p_error_stack)
 
         # check aliased rules
         for pos, id in self._p_error_stack:
