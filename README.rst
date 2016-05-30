@@ -2,6 +2,9 @@
 Fastidious
 ==========
 
+.. image:: https://travis-ci.org/lisael/fastidious.svg?branch=master
+    :target: https://travis-ci.org/lisael/fastidious
+
 A python `parsing expression grammar
 (PEG) <https://en.wikipedia.org/wiki/Parsing_expression_grammar>`_ based parser
 generator.  It is loosely based on https://github.com/PuerkitoBio/pigeon
