@@ -293,6 +293,87 @@ the expression that follows the colon. E.g.:
 If this sequence matches, the rule returns only the ``[a-z]+`` part instead of
 ``["thevalue", "a suffix"]``
 
+And and not expressions
+-----------------------
+
+An expression prefixed with the exclamation point ``!`` is the "not" predicate
+expression: it is considered a match if the following expression is not a
+match, but it does not consume any input.
+
+An expression prefixed with the ampersand ``&`` is the "and" predicate
+expression: it is considered a match if the following expression is a match,
+but it does not consume any input.
+
+``&`` doesn't exist in pure PEG grammar theory, and is sugar for ``!!``
+
+.. code-block::
+
+	not_expr <- "A" !"B" #  matches "A" if not followed by a "B" (does not consume "B")
+	and_expr <- "A" &"B" #  matches "A" if followed by a "B" (does not consume "B")
+
+
+Repeating expressions
+---------------------
+
+An expression followed by "*", "?" or "+" is a match if the expression occurs
+zero or more times ("*"), zero or one time "?" or one or more times ("+")
+respectively. The match is greedy, it will match as many times as possible.
+E.g:: 
+
+        zero_or_more_as <- "A"*
+
+Literal matcher
+---------------
+
+A literal matcher tries to match the input against a single character or a
+string literal. The literal may be a single-quoted or double-quoted string. 
+The same rules as Python apply regarding allowed characters and escaping.
+
+The literal may be followed by a lowercase ``i`` (outside the ending quote)
+to indicate that the match is case-insensitive. E.g.::
+
+        literal_match <- "Awesome\n"i # matches "awesome" followed by a newline
+
+Character class matcher
+-----------------------
+
+A character class matcher tries to match the input against a class of
+characters inside square brackets ``[...]``. Inside the brackets, characters
+represent themselves and the same escapes as in string literals are available,
+except that the single- and double-quote escape is not valid, instead the
+closing square bracket ``]`` must be escaped to be used.
+
+Character ranges can be specified using the ``[a-z]`` notation. Unicode chars are
+not supported yet.
+
+As for string literals, a lowercase ``i`` may follow the matcher (outside the
+ending square bracket) to indicate that the match is case-insensitive. A ``^`` as
+first character inside the square brackets indicates that the match is inverted
+(it is a match if the input does not match the character class matcher). E.g.::
+
+        not_az <- [^a-z]i
+
+Any matcher
+-----------
+
+The any matcher is represented by the dot ``.``. It matches any character except
+the end of file, thus the ``!.`` expression is used to indicate "match the end of
+file". E.g.::
+
+        any_char <- . # match a single character
+        EOF <- !.
+
+Regex matcher
+-------------
+
+Although not in the formal definition of PEG parsers, regex may be handy (OR NOT!)
+and may provide substantial performance improvements. A regex expression is
+defined in a single- or double-quoted string prefixed by a ``~``.
+
+Flags "iLmsux" as described in python ``re`` module can follow the pattern. E.g.::
+
+        re_match <- ~"https?://[\\S:@/]*"i  # DON'T TRY THIS ONE, it's just a silly example
+
 Error reporting
 ===============
 
