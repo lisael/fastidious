@@ -262,7 +262,7 @@ class ParserMixin(object):
 
         .. code-block::
 
-            my_rule <- 'a' . 'c' { p_flatten }
+            my_rule <- 'a' . 'c' {p_flatten}
 
         With the input "abc" and no action, this rule returns [ 'a', 'b', 'c'].
         { p_flatten } procuces "abc".

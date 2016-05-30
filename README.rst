@@ -16,7 +16,7 @@ literal chars are in quotes and that we can reference other rules.
 
 .. code-block:: python
 
-        #! /usr/bin/python
+        #! /usr/bin/env python
         from fastidious import Parser
 
 
