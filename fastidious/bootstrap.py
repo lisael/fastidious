@@ -3,6 +3,7 @@ from functools import partial
 import string
 
 from .expressions import *  # noqa
+from .compat import UPPERCASE, LOWERCASE
 
 
 class UnknownRule(Exception):
@@ -325,7 +326,7 @@ class ParserMixin(object):
         return self.p_syntax_error(*expected)
 
 
-class Parser(ParserMixin):
+class Parser(ParserMixin, metaclass=ParserMeta):
     """
     Base class for parsers. It calls the metaclass that generates the code
     """
@@ -370,7 +371,7 @@ class _GrammarParserMixin(object):
             try:
                 label[0] = expr.rulename
             except AttributeError:
-                self.parse_error(
+                self.p_parse_error(
                     "Label can be omitted only on rule reference"
                 )
         return LabeledExpr(label[0], expr)
@@ -413,9 +414,9 @@ class _GrammarParserMixin(object):
     def on_class_char_range(self, value, start, end):
         try:
             if start.islower():
-                charset = string.lowercase
+                charset = LOWERCASE
             elif start.isupper():
-                charset = string.uppercase
+                charset = UPPERCASE
             elif start.isdigit():
                 charset = string.digits
             starti = charset.index(start)
@@ -423,7 +424,7 @@ class _GrammarParserMixin(object):
             assert starti <= endi
             return charset[starti:endi+1]
         except:
-            self.parse_error(
+            self.p_parse_error(
                 "Invalid char range : `{}`".format(self.p_flatten(value)))
 
     _escaped = {

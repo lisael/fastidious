@@ -1,5 +1,6 @@
 import re
-from types import UnboundMethodType, MethodType
+from types import MethodType
+from .compat import add_method
 
 try:
     basestring
@@ -722,6 +723,7 @@ class Rule(ExprMixin):
         return result
 
     def _attach_to(self, parser):
+        print("1")
         m = UnboundMethodType(self, None, parser)
         setattr(parser, self.name, m)
         if not self.action and hasattr(parser, "on_{}".format(self.name)):
@@ -783,15 +785,7 @@ class Rule(ExprMixin):
         if debug:
             code = code.replace("# -- ", "")
         code = code.strip()
-        exec(code)
-        code = code.replace("new_method", self.name)
-        new_method._code = code  # noqa
-        new_method.func_name = self.name  # noqa
-        if isinstance(parser, type):
-            meth = UnboundMethodType(new_method, None, parser)  # noqa
-        else:
-            meth = MethodType(new_method, parser, type(parser))  # noqa
-        setattr(parser, self.name, meth)
+        add_method(code, globals(), parser, self.name)
 
     def as_grammar(self):
         if self.action == "on_{}".format(self.name):
