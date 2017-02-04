@@ -723,7 +723,6 @@ class Rule(ExprMixin):
         return result
 
     def _attach_to(self, parser):
-        print("1")
         m = UnboundMethodType(self, None, parser)
         setattr(parser, self.name, m)
         if not self.action and hasattr(parser, "on_{}".format(self.name)):
