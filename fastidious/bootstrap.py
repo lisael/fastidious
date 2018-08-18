@@ -140,6 +140,9 @@ class ParserMixin(object):
     __debug___ = False
     __code_gen__ = True
 
+    class NoMatch(object):
+        pass
+
     def __init__(self, input):
         self.input = input
         self.pos = 0
@@ -283,7 +286,7 @@ class ParserMixin(object):
         'abc'
 
         """
-        if isinstance(obj, basestring):
+        if isinstance(obj, six.string_types):
             return obj
         result = ""
         for i in obj:
@@ -302,7 +305,7 @@ class ParserMixin(object):
             methodname = cls.__default__
         p = cls(input)
         result = getattr(p, methodname)()
-        if result is NoMatch or parse_all and p.p_peek() is not None:
+        if result is cls.NoMatch or parse_all and p.p_peek() is not None:
             p.p_raise()
         return result
 

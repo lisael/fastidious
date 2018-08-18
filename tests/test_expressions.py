@@ -1,6 +1,8 @@
 import re  # noqa
 from unittest import TestCase
 
+import six
+
 from fastidious.expressions import *  # noqa
 from fastidious.bootstrap import ParserMixin
 
@@ -14,9 +16,10 @@ class ExprTestMixin(object):
         # test the expression class __call__ method
         l = self.ExprKlass(*args)
         p = ParserMock(input)
+        self.NoMatch = p.NoMatch
         r = l(p)
         self.assertEquals(r, res)
-        if isinstance(res, basestring):
+        if isinstance(res, six.string_types):
             self.assertEquals(input[len(res):], p.p_suffix())
 
         # test the generated code
@@ -29,7 +32,7 @@ class ExprTestMixin(object):
         # exec("\n".join(globs))
         # exec(code)
         # oldself.assertEquals(result, res)
-        # if isinstance(res, basestring):
+        # if isinstance(res, six.string_types):
             # oldself.assertEquals(input[len(res):], self.p_suffix())
 
 
@@ -38,11 +41,11 @@ class LiteralExprTests(TestCase, ExprTestMixin):
 
     def test_literal(self):
         self.expect(("a",), "ab", "a")
-        self.expect(("b",), "Bb", NoMatch)
+        self.expect(("b",), "Bb", self.NoMatch)
         self.expect(("\\",), '\\rest', '\\')
         self.expect(("a", True), "ab", "a")
         self.expect(("a", True), "Ab", "A")
-        self.expect(("b", True), "ab", NoMatch)
+        self.expect(("b", True), "ab", self.NoMatch)
         self.expect(("\\", True), '\\rest', '\\')
 
 
@@ -60,7 +63,7 @@ class CharRangeExprTest(TestCase, ExprTestMixin):
     def test_char_range(self):
         self.expect(("ab",), "add", "a")
         self.expect(("ab",), "bdd", "b")
-        self.expect(("ab",), "cab", NoMatch)
+        self.expect(("ab",), "cab", self.NoMatch)
 
 
 class SeqExprTest(TestCase, ExprTestMixin):
@@ -90,7 +93,7 @@ class OneOrMoreExprTest(TestCase, ExprTestMixin):
         )
         self.expect(
             (LiteralExpr("a"),),
-            "bbb", NoMatch
+            "bbb", self.NoMatch
         )
 
 
@@ -128,7 +131,7 @@ class AnyCharExprTest(TestCase, ExprTestMixin):
 
     def test_any_char(self):
         self.expect(tuple(), "aa", "a")
-        self.expect(tuple(), "", NoMatch)
+        self.expect(tuple(), "", self.NoMatch)
 
 
 class MaybeExprTest(TestCase, ExprTestMixin):
