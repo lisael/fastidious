@@ -27,7 +27,6 @@ class NotMemoized(Parser):
 
 
 class NotJSONParser(Parser):
-    # __debug___ r True
     __inline__ = True
     __grammar__ = r"""
         value <- _ (string / number / object / array / true_false_null) _
@@ -46,14 +45,23 @@ class NotJSONParser(Parser):
         frac <- "." digits
         exp <- e digits
         digits <- digit+
-        e <- "e+" / "e-" / "e" / "E+" / "E-" / "E"
-        # e <- ~"e[-+]?"i # faster but not in parsimonious' benchmark
+        # e <- "e+" / "e-" / "e" / "E+" / "E-" / "E"
+        e <- ~"e[-+]?"i # faster but not in parsimonious' benchmark
 
         digit1to9 <- ~"[1-9]"
         digit <- ~"[0-9]"
         _ <- ~"\\s*"
 
     """
+
+class NotJSONNoCodeGenParser(Parser):
+    __code_gen__ = False
+    __grammar__ = NotJSONParser.__grammar__
+
+
+class NotJSONNoMemoizedParser(Parser):
+    __memoize__ = False
+    __grammar__ = NotJSONParser.__grammar__
 
 
 father = """{
@@ -90,7 +98,7 @@ def benchit(klass, source, entry_point, ref=None):
     gc.collect()
 
     NUMBER = 1
-    REPEAT = 5
+    REPEAT = 2
     total_seconds = min(repeat(lambda: entry_point(klass(source)),
                                lambda: gc.enable(),
                                repeat=REPEAT,
@@ -112,7 +120,9 @@ def benchit(klass, source, entry_point, ref=None):
     return seconds_each
 
 
-benchit(NotJSONParser, json, "value")
+ref = benchit(NotJSONParser, json, "value")
+benchit(NotJSONNoCodeGenParser, json, "value", ref)
+benchit(NotJSONNoMemoizedParser, json, "value", ref)
 ref = benchit(_GrammarParser, grammar, "grammar", "(base)")
 benchit(_GrammarParserBootstraper, grammar, "grammar", ref)
 ref = benchit(Default, grammar, "grammar", "(base)")
