@@ -1,10 +1,20 @@
 import re
-from types import UnboundMethodType, MethodType
+
+try:
+    from types import UnboundMethodType, MethodType
+except ImportError:
+    from types import MethodType, FunctionType
+
 
 try:
     basestring
 except NameError:
     basestring = str
+
+import sys
+
+
+_PY3K = sys.version_info[0] == 3
 
 
 class NoMatch(object):
@@ -32,7 +42,7 @@ class ExprMixin(object):
         if parser.__debug___:
             print("{}{} `{}`".format(parser._debug_indent * " ",
                                      message, parser.input[
-                                         parser.pos:parser.pos+5]))
+                                         parser.pos:parser.pos + 5]))
 
     def disable_errors(self):
         self.report_errors = False
@@ -248,7 +258,7 @@ class ChoiceExpr(ExprMixin):
 if result is NoMatch:
                 """.format(expr.as_code(memoize)).strip()
                 exprs.append(self._indent(expr_code, i))
-            exprs.append(self._indent("pass", i+1))
+            exprs.append(self._indent("pass", i + 1))
             return "\n".join(exprs)
 
         code = """
@@ -393,10 +403,10 @@ else:
 {2}
     result = NoMatch
         """.format(
-                self.as_grammar(),
-                repr(self.chars),
-                self.report_error(1),
-            )
+            self.as_grammar(),
+            repr(self.chars),
+            self.report_error(1),
+        )
         if memoize:
             code = self.memoize(code.strip())
         return code.strip()
@@ -759,6 +769,7 @@ class Rule(ExprMixin):
     # {3}
     # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
+    {6}
     self.args_stack.setdefault("{0}",[]).append(dict())
 {1}
     args = self.args_stack["{0}"].pop()
@@ -777,20 +788,30 @@ class Rule(ExprMixin):
                    self.as_grammar(),
                    self.report_error(2),
                    self.id,
+                   ", ".join(globals_),
                    )
-        defline = "def new_method(self, {}):".format(", ".join(globals_))
+        defline = "def {}(self):".format(self.name)
         code = "\n".join([defline, code])
         if debug:
             code = code.replace("# -- ", "")
         code = code.strip()
-        exec(code)
-        code = code.replace("new_method", self.name)
-        new_method._code = code  # noqa
-        new_method.func_name = self.name  # noqa
-        if isinstance(parser, type):
-            meth = UnboundMethodType(new_method, None, parser)  # noqa
+        locals_ = dict()
+        exec(code, None, locals_)
+        new_method = locals_[self.name]
+        if _PY3K:
+            new_method.__name__ = self.name
+            if isinstance(parser, type):
+                meth = FunctionType(new_method.__code__, globals(), self.name)
+            else:
+                meth = MethodType(new_method, parser)  # noqa
         else:
-            meth = MethodType(new_method, parser, type(parser))  # noqa
+            code = code.replace("new_method", self.name)
+            new_method._code = code  # noqa
+            new_method.func_name = self.name  # noqa
+            if isinstance(parser, type):
+                meth = UnboundMethodType(new_method, None, parser)  # noqa
+            else:
+                meth = MethodType(new_method, parser, type(parser))  # noqa
         setattr(parser, self.name, meth)
 
     def as_grammar(self):

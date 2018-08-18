@@ -117,9 +117,9 @@ class ChoiceExprTest(TestCase, ExprTestMixin):
 
     def test_seq(self):
         choices = (
-                LiteralExpr("aa"),
-                LiteralExpr("bb"),
-            )
+            LiteralExpr("aa"),
+            LiteralExpr("bb"),
+        )
         self.expect(choices, "aa cc", "aa")
 
 

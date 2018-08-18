@@ -100,7 +100,7 @@ def benchit(klass, source, entry_point, ref=None):
 
     if ref is not None:
         if isinstance(ref, float):
-            var = "(%.1f%%)" % ((ref-t)*100/ref)
+            var = "(%.1f%%)" % ((ref - t) * 100 / ref)
         else:
             var = ref
     else:
@@ -110,6 +110,7 @@ def benchit(klass, source, entry_point, ref=None):
     print('%-25s: Took %.3fs to parse %.1fKB: %.0fKB/s %s' % (
         klass.__name__, seconds_each, kb, kb / seconds_each, var))
     return seconds_each
+
 
 benchit(NotJSONParser, json, "value")
 ref = benchit(_GrammarParser, grammar, "grammar", "(base)")

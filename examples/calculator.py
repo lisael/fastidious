@@ -51,6 +51,7 @@ class Calculator(Parser):
     def on_integer(self, value):
         return int(self.p_flatten(value))
 
+
 if __name__ == "__main__":
     import sys
     print(Calculator.p_parse("".join(sys.argv[1:])))

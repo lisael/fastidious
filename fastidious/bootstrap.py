@@ -1,8 +1,20 @@
 import re
 from functools import partial
 import string
+import sys
+
+import six
 
 from .expressions import *  # noqa
+
+
+if sys.version_info[0] == 3:
+    UPPERCASE = string.ascii_uppercase
+    LOWERCASE = string.ascii_lowercase
+else:
+
+    UPPERCASE = string.uppercase
+    LOWERCASE = string.lowercase
 
 
 class UnknownRule(Exception):
@@ -22,13 +34,13 @@ class ParserMeta(type):
             attrs.setdefault("__rules__", [])
             for base in bases:
                 attrs["__rules__"] = cls.merge_rules(
-                        attrs["__rules__"],
-                        getattr(base, "__rules__", [])
+                    attrs["__rules__"],
+                    getattr(base, "__rules__", [])
                 )
             new_rules = cls.parse_grammar(
-                        attrs["__grammar__"],
-                        parser
-                    )
+                attrs["__grammar__"],
+                parser
+            )
             attrs.setdefault("__default__", new_rules[0].name)
             attrs["__rules__"] = cls.merge_rules(attrs["__rules__"],
                                                  new_rules)
@@ -149,7 +161,7 @@ class ParserMixin(object):
     def p_suffix(self, length=None, elipsis=False):
         "Return the rest of the input"
         if length is not None:
-            result = self.input[self.pos:self.pos+length]
+            result = self.input[self.pos:self.pos + length]
             if elipsis and len(result) == length:
                 result += "..."
             return result
@@ -246,7 +258,7 @@ class ParserMixin(object):
     def p_startswith(self, st, ignorecase=False):
         "Return True if the input starts with `st` at current position"
         length = len(st)
-        matcher = result = self.input[self.pos:self.pos+length]
+        matcher = result = self.input[self.pos:self.pos + length]
         if ignorecase:
             matcher = result.lower()
             st = st.lower()
@@ -325,11 +337,10 @@ class ParserMixin(object):
         return self.p_syntax_error(*expected)
 
 
-class Parser(ParserMixin):
+class Parser(six.with_metaclass(ParserMeta, ParserMixin)):
     """
     Base class for parsers. It calls the metaclass that generates the code
     """
-    __metaclass__ = ParserMeta
 
 
 class _GrammarParserMixin(object):
@@ -361,7 +372,7 @@ class _GrammarParserMixin(object):
         if not rest:
             # a sequence of one element is an element
             return first
-        return SeqExpr(*[first]+[r[1] for r in rest])
+        return SeqExpr(*[first] + [r[1] for r in rest])
 
     def on_labeled_expr(self, value, label, expr):
         if not label:
@@ -413,16 +424,16 @@ class _GrammarParserMixin(object):
     def on_class_char_range(self, value, start, end):
         try:
             if start.islower():
-                charset = string.lowercase
+                charset = LOWERCASE
             elif start.isupper():
-                charset = string.uppercase
+                charset = UPPERCASE
             elif start.isdigit():
                 charset = string.digits
             starti = charset.index(start)
             endi = charset.index(end)
             assert starti <= endi
-            return charset[starti:endi+1]
-        except:
+            return charset[starti:endi + 1]
+        except Exception:
             self.parse_error(
                 "Invalid char range : `{}`".format(self.p_flatten(value)))
 

@@ -1,5 +1,5 @@
 flake:
-	flake8 fastidious tests examples
+	flake8 --ignore=F405,E741 fastidious tests examples
 
 _test:
 	nosetests -s ./tests/
@@ -12,7 +12,7 @@ test: flake _test
 vtest: flake _vtest
 
 _cov: 
-	nosetests -s --with-cover --cover-html --cover-branches --cover-html-dir ./coverage ./tests/
+	nosetests -s --with-cover --cover-html --cover-branches --cover-package=fastidious --cover-html-dir ./coverage ./tests/
 	@echo "open file://`pwd`/coverage/index.html"
 
 cov: flake _cov
