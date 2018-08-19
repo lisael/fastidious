@@ -643,7 +643,7 @@ self.p_restore()
 if result is self.NoMatch:
 {2}
 #else:
-    ## print self._p_error_stack
+    #print self._p_error_stack
     #self._p_error_stack.pop()
         """.format(
             self.expr.as_code(memoize),
@@ -750,17 +750,14 @@ class Rule(ExprMixin):
         else:
             return self.expr.expected
 
-    def as_method(self, parser):
-        memoize = parser.__memoize__
-        debug = parser.__debug___
+    def gen_code(self, parser, memoize=True, debug=False):
         globals_ = []
         if not self.action:
             default_action = "on_{}".format(self.name)
             if hasattr(parser, default_action):
                 self.action = default_action
 
-        code = """
-    # {3}
+        code = """    '''{3}'''
     # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
     {6}
@@ -779,7 +776,7 @@ class Rule(ExprMixin):
         """.format(self.name,
                    self._indent(self.expr.as_code(memoize, globals_), 1),
                    self._action(),
-                   self.as_grammar(),
+                   self.as_grammar().replace("'", "\\'"),
                    self.report_error(2),
                    self.id,
                    ", ".join(globals_),
@@ -789,6 +786,12 @@ class Rule(ExprMixin):
         if debug:
             code = code.replace("# -- ", "")
         code = code.strip()
+        return code
+
+    def as_method(self, parser):
+        memoize = parser.__memoize__
+        debug = parser.__debug___
+        code = self.gen_code(parser, memoize, debug)
         locals_ = dict()
         exec(code, None, locals_)
         new_method = locals_[self.name]

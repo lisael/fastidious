@@ -9,6 +9,18 @@ A python `parsing expression grammar
 (PEG) <https://en.wikipedia.org/wiki/Parsing_expression_grammar>`_ based parser
 generator.  It is loosely based on https://github.com/PuerkitoBio/pigeon
 
+Features
+========
+
+- Full PEG grammar, with some syntaxic sugar
+
+- Reasonably fast for a python parser
+
+- Can generate standalone code, no need to import fastidious to use a
+  parser
+
+- Parsing error reporting, with position and expected token hint
+
 Usage
 =====
 
@@ -90,6 +102,22 @@ Then you have a full-fledge state-of-the-art integer only calculator \o/
 
         examples/calculator.py "-21 *  ( 3 + 1 ) / -2"
         42
+
+Standalone code generation
+++++++++++++++++++++++++++
+
+Fastidious can generate the code of a standalone parser with only a
+dependency on ``six``. Given a parser that you had carefully designed,
+debug and tested with fastidious, you may want to ship it in your
+project without keeping the dependency on fastidious itself.
+
+.. code-block:: sh
+        echo "#! /usr/bin/env python" > mycalc.py
+        python -m fastidious examples.calculator.Calculator >> mycalc.py
+        echo "import sys" >> mycalc.py
+        echo "print(Calculator.p_parse(' '.join(sys.argv[1:])))" >> mycalc.py
+        chmod +x mycalc.py
+        mycalc.py 2 + 1
 
 Inheritance
 +++++++++++
