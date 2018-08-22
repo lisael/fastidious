@@ -114,7 +114,13 @@ class ParserGraphVisitor(Visitor):
         if node not in self.nodes:
             self.current_id += 1
             self.nodes[node] = self.current_id
-        return "node%s" % self.nodes[node]
+        return "node_%s" % self.nodes[node]
+
+    def cluster_name(self, node):
+        if node not in self.nodes:
+            self.current_id += 1
+            self.nodes[node] = self.current_id
+        return "cluster_%s" % self.nodes[node]
 
     def link(self, node1, node2, label=None):
         if isinstance(node1, LabeledExpr):
@@ -128,7 +134,7 @@ class ParserGraphVisitor(Visitor):
             return self.link(node1, node2, label)
         if isinstance(node2, Not):
             node2 = node2.expr
-            return self.link(node1, node2, "!")
+            return self.link(node1, node2, label)
         if isinstance(node1, OneOrMoreExpr):
             node1 = node1.expr
             return self.link(node1, node2, label)
@@ -193,7 +199,6 @@ class ParserGraphVisitor(Visitor):
             self.link(self.bypasses[n1], n2, "?")
         self.missing_bypasses = []
 
-
     def visit_seqexpr(self, node):
         lastnode = None
         for i, expr in enumerate(node.exprs):
@@ -212,7 +217,12 @@ class ParserGraphVisitor(Visitor):
             self.visit(e)
 
     def visit_labeledexpr(self, node):
+        self.content.write("""  subgraph %s {
+    label="%s";
+    color=grey;
+""" % (self.cluster_name(node), node.name))
         self.visit(node.expr)
+        self.content.write("  }\n")
 
     def visit_oneormoreexpr(self, node):
         self.visit(node.expr)
@@ -246,7 +256,13 @@ class ParserGraphVisitor(Visitor):
         self.content.write(s)
 
     def visit_not(self, node):
+        self.content.write("""  subgraph %s {
+    label="!";
+    style="dashed";
+""" % (self.cluster_name(node), ))
         self.visit(node.expr)
+        self.content.write("  }\n")
+
 
     def visit_maybeexpr(self, node):
         self.visit(node.expr)
