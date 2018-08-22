@@ -123,38 +123,39 @@ class ParserGraphVisitor(Visitor):
         return "cluster_%s" % self.nodes[node]
 
     def link(self, node1, node2, label=None):
-        if isinstance(node1, LabeledExpr):
+        if isinstance(node1, (LabeledExpr, Not, OneOrMoreExpr)):
             node1 = node1.expr
             return self.link(node1, node2, label)
-        if isinstance(node2, LabeledExpr):
+        if isinstance(node2, (LabeledExpr, Not, OneOrMoreExpr)):
             node2 = node2.expr
             return self.link(node1, node2, label)
-        if isinstance(node1, Not):
-            node1 = node1.expr
-            return self.link(node1, node2, label)
-        if isinstance(node2, Not):
-            node2 = node2.expr
-            return self.link(node1, node2, label)
-        if isinstance(node1, OneOrMoreExpr):
-            node1 = node1.expr
-            return self.link(node1, node2, label)
-        if isinstance(node2, OneOrMoreExpr):
-            node2 = node2.expr
-            return self.link(node1, node2, label)
+
         if isinstance(node1, ZeroOrMoreExpr):
             node1 = node1.expr
-            self.link(self.bypasses[node1], node2)
+            try:
+                self.link(self.bypasses[node1], node2)
+            except KeyError:
+                self.missing_bypasses.append((node1, node2, None))
             return self.link(node1, node2, label)
-        if isinstance(node2, ZeroOrMoreExpr):
+        if isinstance(node1, MaybeExpr):
+            node1 = node1.expr
+            try:
+                self.link(self.bypasses[node1], node2, label="?")
+            except KeyError:
+                self.missing_bypasses.append((node1, node2, "?"))
+            return self.link(node1, node2, label)
+        if isinstance(node2, (MaybeExpr, ZeroOrMoreExpr)):
             node2 = node2.expr
             self.bypasses[node2] = node1
             return self.link(node1, node2, label)
+
         if isinstance(node1, SeqExpr):
             node1 = node1.exprs[-1]
             return self.link(node1, node2, label)
         if isinstance(node2, SeqExpr):
             node2 = node2.exprs[0]
             return self.link(node1, node2, label)
+
         if isinstance(node1, ChoiceExpr):
             for n in node1.exprs:
                 self.link(n, node2, label)
@@ -163,17 +164,7 @@ class ParserGraphVisitor(Visitor):
             for n in node2.exprs:
                 self.link(node1, n, label)
             return
-        if isinstance(node1, MaybeExpr):
-            node1 = node1.expr
-            try:
-                self.link(self.bypasses[node1], node2, label="?")
-            except KeyError:
-                self.missing_bypasses.append((node1, node2, "?"))
-            return self.link(node1, node2, label)
-        if isinstance(node2, MaybeExpr):
-            node2 = node2.expr
-            self.bypasses[node2] = node1
-            return self.link(node1, node2, label)
+
         if node1 not in self.nodes:
             raise Exception(node1)
         if node2 not in self.nodes:
@@ -186,7 +177,7 @@ class ParserGraphVisitor(Visitor):
                 "  %s -> %s%s\n" % (self.node_name(node1), self.node_name(node2), label))
 
     def visit_rule(self, node):
-        s = '  %s [label="%s", shape="doublecircle"]\n' % (self.node_name(node), node.name)
+        s = '  %s [label="%s", shape="rect", style=bold]\n' % (self.node_name(node), node.name)
         self.content.write(s)
         self.visit(node.expr)
         self.link(node, node.expr)
@@ -206,11 +197,6 @@ class ParserGraphVisitor(Visitor):
             if lastnode is not None:
                 self.link(lastnode, expr)
             lastnode = expr
-
-    def visit_ruleexpr(self, node):
-        return self.add_generic_node(node)
-        s = '  %s [label="%s"]\n' % (self.node_name(node), node.rulename)
-        self.content.write(s)
 
     def visit_choiceexpr(self, node):
         for e in node.exprs:
@@ -232,27 +218,12 @@ class ParserGraphVisitor(Visitor):
         self.visit(node.expr)
         self.link(node.expr, node.expr, "*")
 
-    def add_generic_node(self, node):
+    def generic_visit(self, node):
         label = node.as_grammar()
         label = label.replace("\\'", "'")
         label = label.replace("\\", "\\\\")
         label = label.replace('"', '\\"')
         s = '  %s [label="%s"]\n' % (self.node_name(node), label)
-        self.content.write(s)
-
-    def visit_charrangeexpr(self, node):
-        return self.add_generic_node(node)
-        s = '  %s [label="%s"]\n' % (self.node_name(node), node.as_grammar().replace("\\", "\\\\"))
-        self.content.write(s)
-
-    def visit_literalexpr(self, node):
-        return self.add_generic_node(node)
-        s = '  %s [label="\'%s\'"]\n' % (self.node_name(node), node.lit)
-        self.content.write(s)
-
-    def visit_anycharexpr(self, node):
-        return self.add_generic_node(node)
-        s = '  %s [label="."]\n' % self.node_name(node)
         self.content.write(s)
 
     def visit_not(self, node):
@@ -262,7 +233,6 @@ class ParserGraphVisitor(Visitor):
 """ % (self.cluster_name(node), ))
         self.visit(node.expr)
         self.content.write("  }\n")
-
 
     def visit_maybeexpr(self, node):
         self.visit(node.expr)
@@ -277,7 +247,7 @@ class ParserGraphVisitor(Visitor):
 def graph(klass):
     parser = load_parser(klass)
     v = ParserGraphVisitor()
-    dot = v.generate_dot(parser.__rules__[:9][::-1])
+    dot = v.generate_dot(parser.__rules__[::-1])
     return dot
 
 

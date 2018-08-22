@@ -121,15 +121,16 @@ def benchit(klass, source, entry_point, ref=None):
     return seconds_each
 
 
-ref = benchit(NotJSONParser, json, "value")
-benchit(NotJSONNoCodeGenParser, json, "value", ref)
-benchit(NotJSONNoMemoizedParser, json, "value", ref)
-ref = benchit(_GrammarParser, grammar, "grammar", "(base)")
-benchit(_GrammarParserBootstraper, grammar, "grammar", ref)
-ref = benchit(Default, grammar, "grammar", "(base)")
-benchit(NoCodeGen, grammar, "grammar", ref)
-benchit(NotMemoized, grammar, "grammar", ref)
+if __name__ == "__main__":
+    ref = benchit(NotJSONParser, json, "value")
+    benchit(NotJSONNoCodeGenParser, json, "value", ref)
+    benchit(NotJSONNoMemoizedParser, json, "value", ref)
+    ref = benchit(_GrammarParser, grammar, "grammar", "(base)")
+    benchit(_GrammarParserBootstraper, grammar, "grammar", ref)
+    ref = benchit(Default, grammar, "grammar", "(base)")
+    benchit(NoCodeGen, grammar, "grammar", ref)
+    benchit(NotMemoized, grammar, "grammar", ref)
 
-default = Default(grammar).grammar()
-nm = NotMemoized(grammar).grammar()
-assert default == nm
+    default = Default(grammar).grammar()
+    nm = NotMemoized(grammar).grammar()
+    assert default == nm
