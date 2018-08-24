@@ -1,8 +1,9 @@
 import six
 
-from fastidious.expressions import (Not, ZeroOrMoreExpr, LabeledExpr,
-                                    SeqExpr, ChoiceExpr, MaybeExpr, OneOrMoreExpr)
+from fastidious.expressions import (Not, ZeroOrMoreExpr, LabeledExpr, SeqExpr,
+                                    ChoiceExpr, MaybeExpr, OneOrMoreExpr)
 from fastidious.utils import Visitor
+
 
 class ParserGraphVisitor(Visitor):
     def __init__(self):
@@ -82,8 +83,8 @@ class ParserGraphVisitor(Visitor):
         else:
             label = ""
         self.content.write(
-                "  %s -> %s%s\n" % (self.node_name(node1),
-                                    self.node_name(node2), label))
+            "  %s -> %s%s\n" % (self.node_name(node1),
+                                self.node_name(node2), label))
 
     def visit_rule(self, node):
         s = '  %s [label="%s", shape="rect", style=bold]\n' % (
