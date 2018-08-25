@@ -2,7 +2,7 @@ import argparse
 
 import inspect
 
-from fastidious.bootstrap import ParserMeta, Parser, ParserMixin
+from fastidious.parser import ParserMeta, Parser, ParserMixin
 from fastidious.gendot import ParserGraphVisitor
 
 

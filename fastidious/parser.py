@@ -1,7 +1,16 @@
-from .bootstrap import Parser, _GrammarParserMixin
+import six
+
+from fastidious.parser_base import (_FastidiousParserMixin, ParserMeta,
+                                    ParserMixin)
 
 
-class _GrammarParser(Parser, _GrammarParserMixin):
+class Parser(six.with_metaclass(ParserMeta, ParserMixin)):
+    """
+    Base class for parsers. It calls the metaclass that generates the code
+    """
+
+
+class _FastidiousParser(Parser, _FastidiousParserMixin):
 
     __grammar__ = r"""
         grammar <- __ rules:( rule __ )+

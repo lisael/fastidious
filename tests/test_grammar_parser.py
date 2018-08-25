@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from fastidious.bootstrap import _GrammarParserBootstraper
-from fastidious.parser import _GrammarParser
+from fastidious.bootstrap import _FastidiousParserBootstraper
+from fastidious.parser import _FastidiousParser
 
 
 class GrammarParserMixin(object):
@@ -39,8 +39,8 @@ class GrammarParserMixin(object):
 
 
 class TestGrammarParserBootstraper(TestCase, GrammarParserMixin):
-    klass = _GrammarParserBootstraper
+    klass = _FastidiousParserBootstraper
 
 
 class TestGrammarParserXX(TestCase, GrammarParserMixin):
-    klass = _GrammarParser
+    klass = _FastidiousParser

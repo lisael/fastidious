@@ -9,3 +9,12 @@ class Visitor(object):
 
     def generic_visit(self, node):
         raise NotImplementedError(node)
+
+
+class RuleVisitor(Visitor):
+    def generic_visit(self, node):
+        if hasattr(node, "expr"):
+            self.visit(node.expr)
+        if hasattr(node, "exprs"):
+            for e in node.exprs:
+                self.visit(e)
