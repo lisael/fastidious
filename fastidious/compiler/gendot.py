@@ -98,7 +98,7 @@ class ParserGraphVisitor(Visitor):
         self.content.write(s)
         self.link(node.expr, dummy)
         for n1, n2, label in self.missing_bypasses:
-            self.link(self.bypasses[n1], n2, "?")
+            self.link(self.bypasses[n1], n2, label)
         self.missing_bypasses = []
 
     def visit_seqexpr(self, node):
