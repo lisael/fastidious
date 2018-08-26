@@ -11,13 +11,13 @@ class JSON (Parser):
     ['hello', True]
 
     This is an example using the well-known JSON syntax, It's by no mean
-    intended to provided a replacement of built-in json package.
+    intended to provide a replacement of built-in json package.
     """
 
     __grammar__ = r"""
         json <- value:value EOF {@value}
         value <- _ val:(string / number / object / array / true_false_null)
-        _ {@val}  # noqa
+                 _ {@val}
 
         object <- "{" :members "}"
         members <- (first:member rest:("," member)*)? {on_elements}

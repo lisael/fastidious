@@ -192,6 +192,7 @@ class ParserMixin(object):
             self.pos += 1
             return self.input[self.pos - 1]
         except IndexError:
+            self.pos -= 1
             return None
 
     def p_save(self):
@@ -226,11 +227,11 @@ class ParserMixin(object):
     def p_pretty_pos(self):
         "Print current line and a pretty cursor below. Used in error messages"
         col = self.p_current_col
-        suffix = self.input[self.pos - col + 1:]
+        suffix = self.input[self.pos - col:]
         end = suffix.find("\n")
         if end != -1:
             suffix = suffix[:end]
-        return "%s\n%s" % (suffix, "-" * (col - 1) + "^")
+        return "%s\n%s" % (suffix, "-" * col + "^")
 
     def p_parse_error(self, message):
         raise ParserError(
