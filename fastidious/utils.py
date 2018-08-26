@@ -12,7 +12,11 @@ class Visitor(object):
 
 
 class RuleVisitor(Visitor):
+    def generic_action(self, node):
+        pass
+
     def generic_visit(self, node):
+        self.generic_action(node)
         if hasattr(node, "expr"):
             self.visit(node.expr)
         if hasattr(node, "exprs"):

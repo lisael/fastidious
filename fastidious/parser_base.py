@@ -1,5 +1,4 @@
 import re
-from functools import partial
 import string
 import sys
 
@@ -22,6 +21,10 @@ from fastidious.expressions import (
     ZeroOrMoreExpr
 )
 
+from fastidious.utils import RuleVisitor
+
+from fastidious.compiler import check_rulenames
+
 
 if sys.version_info[0] == 3:
     UPPERCASE = string.ascii_uppercase
@@ -32,21 +35,44 @@ else:
     LOWERCASE = string.lowercase
 
 
-class UnknownRule(Exception):
-    pass
+class _RuleNameToLabels(RuleVisitor):
+    def __init__(self, rules):
+        self.rulename = None
+        for r in rules:
+            self.visit(r)
+
+    def visit_rule(self, node):
+        self.rulename = node.name
+        self.visit(node.expr)
+
+    def visit_labeledexpr(self, node):
+        if node.rulename is None:
+            node.rulename = self.rulename
+        self.visit(node.expr)
+
+
+class _register_expressions(RuleVisitor):
+    def __init__(self, klass):
+        self.klass = klass
+        if not hasattr(klass, "__expressions__"):
+            klass.__expressions__ = dict()
+        for rule in self.klass.__rules__:
+            self.visit(rule)
+
+    def generic_action(self, node):
+        self.klass.__expressions__[node.id] = node
 
 
 class ParserMeta(type):
-    _parser = None
 
     def __new__(cls, name, bases, attrs):
         if "__grammar__" in attrs:
-            if name == "_FastidiousParser":
+            if name in ("FastidiousParser", "FastidiousActionParser"):
                 from fastidious.bootstrap import _FastidiousParserBootstraper
                 parser = _FastidiousParserBootstraper
             else:
-                from fastidious.parser import _FastidiousParser
-                parser = _FastidiousParser
+                from fastidious.parser import FastidiousParser
+                parser = FastidiousParser
             attrs.setdefault("__rules__", [])
             for base in bases:
                 attrs["__rules__"] = cls.merge_rules(
@@ -60,9 +86,10 @@ class ParserMeta(type):
             attrs.setdefault("__default__", new_rules[0].name)
             attrs["__rules__"] = cls.merge_rules(attrs["__rules__"],
                                                  new_rules)
-        rules = attrs.get("__rules__", [])
+        rules = attrs.setdefault("__rules__", [])
         if rules:
             attrs.setdefault("__default__", rules[0].name)
+            check_rulenames(rules)
         new = super(ParserMeta, cls).__new__(cls, name, bases, attrs)
         cls.post_process_rules(new)
         for rule in rules:
@@ -87,47 +114,8 @@ class ParserMeta(type):
 
     @classmethod
     def post_process_rules(cls, newcls):
-        cls.check_unknown_rules(newcls)
-        cls.fix_named_rulename(newcls)
-        cls.register_exprs(newcls)
-
-    @classmethod
-    def fix_named_rulename(cls, newcls):
-        rules = getattr(newcls, "__rules__", [])
-
-        def fix_named_visitor(rulename, expr):
-            if isinstance(expr, LabeledExpr):
-                if expr.rulename is None:
-                    expr.rulename = rulename
-
-        for r in rules:
-            r.visit(partial(fix_named_visitor, r.name))
-
-    @classmethod
-    def register_exprs(cls, newcls):
-        idmap = getattr(newcls, "__expressions__", dict())
-        rules = getattr(newcls, "__rules__", [])
-
-        def register(rmap, expr):
-            rmap[expr.id] = expr
-
-        for r in rules:
-            r.visit(partial(register, idmap))
-
-        newcls.__expressions__ = idmap
-
-    @classmethod
-    def check_unknown_rules(cls, newcls):
-        rules = getattr(newcls, "__rules__", [])
-        rule_names = [r.name for r in rules]
-
-        def check_unknown_visitor(rule):
-            if isinstance(rule, RuleExpr):
-                if rule.rulename not in rule_names:
-                    raise UnknownRule(rule.rulename)
-
-        for r in rules:
-            r.visit(check_unknown_visitor)
+        _RuleNameToLabels(newcls.__rules__)
+        _register_expressions(newcls)
 
     @classmethod
     def parse_grammar(cls, grammar, parser):
@@ -336,10 +324,14 @@ class ParserMixin(object):
         for pos, id in self._p_error_stack:
             if pos < current_pos:
                 break
-            expr = self.__expressions__[id]
-            if expr.is_syntaxic_terminal:
-                current_pos = pos
-                expected += expr.expected
+            try:
+                expr = self.__expressions__[id]
+            except KeyError:
+                continue
+            else:
+                if expr.is_syntaxic_terminal:
+                    current_pos = pos
+                    expected += expr.expected
 
         # none found, fallback to default tips
         if not expected:
@@ -348,10 +340,14 @@ class ParserMixin(object):
                 if current_pos > -1 and pos < current_pos:
                     continue
                 current_pos = pos
-                expr = self.__expressions__[id]
-                if hasattr(expr, "expr") or hasattr(expr, "exprs"):
+                try:
+                    expr = self.__expressions__[id]
+                except KeyError:
                     continue
-                expected += expr.expected
+                else:
+                    if hasattr(expr, "expr") or hasattr(expr, "exprs"):
+                        continue
+                    expected += expr.expected
         self.pos = current_pos
         return self.p_syntax_error(*expected)
 

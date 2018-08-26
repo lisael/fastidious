@@ -3,7 +3,7 @@ import argparse
 import inspect
 
 from fastidious.parser import ParserMeta, Parser, ParserMixin
-from fastidious.gendot import ParserGraphVisitor
+from fastidious.compiler import gendot
 
 
 FASTIDIOUS_MAGIC = ["__grammar__", "__default__"]
@@ -81,8 +81,7 @@ def generate(klass):
 
 def graph(klass):
     parser = load_parser(klass)
-    v = ParserGraphVisitor()
-    dot = v.generate_dot(parser.__rules__[::-1])
+    dot = gendot(parser.__rules__[::-1])
     return dot
 
 

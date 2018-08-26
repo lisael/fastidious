@@ -25,12 +25,6 @@ class ExprMixin(object):
     def expected(self):
         return [self.as_grammar()]
 
-    def visit(self, func):
-        func(self)
-        [child.visit(func) for child in getattr(self, "exprs", [])]
-        if hasattr(self, "expr"):
-            getattr(self, "expr").visit(func)
-
     def debug(self, parser, message):
         if parser.__debug___:
             print("{}{} `{}`".format(parser._debug_indent * " ",

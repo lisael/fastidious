@@ -1,3 +1,5 @@
+import re
+
 import six
 
 from fastidious.parser_base import (_FastidiousParserMixin, ParserMeta,
@@ -10,7 +12,7 @@ class Parser(six.with_metaclass(ParserMeta, ParserMixin)):
     """
 
 
-class _FastidiousParser(Parser, _FastidiousParserMixin):
+class FastidiousParser(Parser, _FastidiousParserMixin):
 
     __grammar__ = r"""
         grammar <- __ rules:( rule __ )+
@@ -73,3 +75,19 @@ class _FastidiousParser(Parser, _FastidiousParserMixin):
         EOS <- ( _ comment? EOL ) / ( __ EOF )
         EOF <- !.
     """  # noqa
+
+
+def parse_grammar(grammar, parser_klass=FastidiousParser):
+    lines = grammar.split('\n')
+    lines.append("")
+    lno = 0
+    # find global indent
+    while lines[lno].strip() == "":
+        lno += 1
+    m = re.match(r"^(\s*)\S", lines[lno])
+    indent = m.groups()[0]
+    stripped = "\n".join(
+        [line.replace(indent, "")
+         for line in lines[lno:]])
+    rules = parser_klass.p_parse(stripped)
+    return rules

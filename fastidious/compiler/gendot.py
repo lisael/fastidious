@@ -153,3 +153,8 @@ class ParserGraphVisitor(Visitor):
             self.visit(node)
         self.content.write("}\n")
         return self.content.getvalue()
+
+
+def gendot(nodes):
+    v = ParserGraphVisitor()
+    return v.generate_dot(nodes)

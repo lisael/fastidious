@@ -1,7 +1,5 @@
-import re  # noqa
 from unittest import TestCase
 
-from fastidious.expressions import *  # noqa
 from fastidious import Parser
 from fastidious import ParserError
 
