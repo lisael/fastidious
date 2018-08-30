@@ -24,6 +24,7 @@ from fastidious.expressions import (
 from fastidious.utils import RuleVisitor
 
 from fastidious.compiler import check_rulenames
+from fastidious.compiler.action.pyclass import SimplePyAction
 
 
 if sys.version_info[0] == 3:
@@ -116,6 +117,8 @@ class ParserMeta(type):
     def post_process_rules(cls, newcls):
         _RuleNameToLabels(newcls.__rules__)
         _register_expressions(newcls)
+        for action in newcls._p_action_classes:
+            action.update_rules(newcls, newcls.__rules__)
 
     @classmethod
     def parse_grammar(cls, grammar, parser):
@@ -143,6 +146,7 @@ class ParserMixin(object):
     # __debug___ = True
     __debug___ = False
     __code_gen__ = True
+    _p_action_classes = []
 
     class NoMatch(object):
         pass
@@ -461,3 +465,94 @@ class _FastidiousParserMixin(object):
 
     def on_common_escape(self, value):
         return self._escaped[self.p_flatten(value)]
+
+
+class NewFastidiousCompiler(object):
+    def __init__(self, gen_code=True):
+        self.parser = None
+        self.gen_code = gen_code
+
+    def process_rules(self):
+        rules = self.parser.__rules__
+        check_rulenames(rules)
+        if self.parser.__default__ is None:
+            self.parser.__default__ = rules[0].name
+        _RuleNameToLabels(rules)
+        _register_expressions(self.parser)
+
+    def process_actions(self):
+        rules = self.parser.__rules__
+        SimplePyAction.update_rules(self.parser, rules)
+
+    def output(self):
+        for rule in self.parser.__rules__:
+            if self.gen_code:
+                rule.as_method(self.parser)
+            else:
+                rule._attach_to(self.parser)
+        return self.parser
+
+    def __call__(self, parser):
+        self.parser = parser
+        return self
+
+
+class NewParserMeta(type):
+
+    def __new__(cls, name, bases, attrs):
+        if "__grammar__" in attrs:
+            if name in ("NewFastidiousParser", "FastidiousActionParser"):
+                from fastidious.bootstrap import _FastidiousParserBootstraper
+                parser = _FastidiousParserBootstraper
+            else:
+                from fastidious.parser import NewFastidiousParser
+                parser = NewFastidiousParser
+            attrs.setdefault("__rules__", [])
+            for base in bases:
+                attrs["__rules__"] = cls.merge_rules(
+                    attrs["__rules__"],
+                    getattr(base, "__rules__", [])
+                )
+            new_rules = cls.parse_grammar(
+                attrs["__grammar__"],
+                parser
+            )
+            attrs.setdefault("__default__", new_rules[0].name)
+            attrs["__rules__"] = cls.merge_rules(attrs["__rules__"],
+                                                 new_rules)
+        attrs.setdefault("__rules__", [])
+        attrs.setdefault("__default__", [])
+        new = super(NewParserMeta, cls).__new__(cls, name, bases, attrs)
+        compiler = new.p_compiler(new)
+        compiler.process_rules()
+        compiler.process_actions()
+        return compiler.output()
+
+    @classmethod
+    def merge_rules(cls, dest, src):
+        names = [r.name for r in dest]
+
+        def remove_rule(name):
+            result = [r for r in dest if r.name != name]
+            return result
+        for rsrc in src:
+            if rsrc.name in names:
+                dest = remove_rule(rsrc.name)
+            dest.append(rsrc)
+        return dest
+
+    @classmethod
+    def parse_grammar(cls, grammar, parser):
+        lines = grammar.split('\n')
+        lines.append("")
+        lno = 0
+        # find global indent
+        while lines[lno].strip() == "":
+            lno += 1
+        m = re.match(r"^(\s*)\S", lines[lno])
+        indent = m.groups()[0]
+        stripped = "\n".join(
+            [line.replace(indent, "")
+             for line in lines[lno:]])
+        rules = parser.p_parse(stripped)
+        return rules

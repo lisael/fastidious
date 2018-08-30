@@ -2,6 +2,7 @@ import re
 
 import six
 
+
 try:
     from types import UnboundMethodType, MethodType
 except ImportError:
@@ -708,6 +709,8 @@ class Rule(ExprMixin):
 
         if result is not parser.NoMatch:
             if self.action is not None:
+                if callable(self.action):
+                    return self.action(parser, result, **args)
                 if isinstance(self.action, six.string_types):
                     if self.action.startswith("@"):
                         return args.get(self.action[1:])
@@ -720,21 +723,27 @@ class Rule(ExprMixin):
         return result
 
     def _attach_to(self, parser):
-        m = UnboundMethodType(self, None, parser)
+        if _PY3K:
+            m = FunctionType(self, globals(), self.name)
+        else:
+            m = UnboundMethodType(self, None, parser)
         setattr(parser, self.name, m)
         if not self.action and hasattr(parser, "on_{}".format(self.name)):
             self.action = "on_{}".format(self.name)
         return m
 
     def _action(self):
+        from fastidious.compiler.action.pyclass import SimplePyAction
         if self.action is not None:
-            if isinstance(self.action, six.string_types):
+            if isinstance(self.action, (six.string_types)):
                 if self.action.startswith("@"):
                     return "result = args['{}']".format(self.action[1:])
                 if self.action.strip() != "":
                     return "result = self.{}(result, **args)".format(
                         self.action
                     )
+            if isinstance(self.action, SimplePyAction):
+                return self.action.as_code()
         return "pass"
 
     @property

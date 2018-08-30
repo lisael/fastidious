@@ -3,7 +3,8 @@ import re
 import six
 
 from fastidious.parser_base import (_FastidiousParserMixin, ParserMeta,
-                                    ParserMixin)
+                                    ParserMixin, NewParserMeta,
+                                    NewFastidiousCompiler)
 
 
 class Parser(six.with_metaclass(ParserMeta, ParserMixin)):
@@ -75,6 +76,17 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
         EOS <- ( _ comment? EOL ) / ( __ EOF )
         EOF <- !.
     """  # noqa
+
+
+class NewParser(six.with_metaclass(NewParserMeta, ParserMixin)):
+    """
+
+    """
+    p_compiler = NewFastidiousCompiler()
+
+
+class NewFastidiousParser(NewParser, _FastidiousParserMixin):
+    __grammar__ = FastidiousParser.__grammar__
 
 
 def parse_grammar(grammar, parser_klass=FastidiousParser):

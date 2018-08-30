@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from fastidious.bootstrap import _FastidiousParserBootstraper
-from fastidious.parser import FastidiousParser
+from fastidious.parser import FastidiousParser, NewFastidiousParser
 
 
 class GrammarParserMixin(object):
@@ -30,6 +30,8 @@ class GrammarParserMixin(object):
     def test_rule(self):
         parser = self.klass("rulename <- 'literal' {on_rulename}")
         result = parser.rule()
+        self.assertEquals(result.name, "rulename")
+        self.assertEquals(result.expr.lit, "literal")
         self.assertEquals(result.action, "on_rulename")
 
     def test_code_block(self):
@@ -38,9 +40,13 @@ class GrammarParserMixin(object):
         self.assertEquals(result, "on_rulename")
 
 
-class TestGrammarParserBootstraper(TestCase, GrammarParserMixin):
+class TestFastidiousParserBootstraper(TestCase, GrammarParserMixin):
     klass = _FastidiousParserBootstraper
 
 
-class TestGrammarParserXX(TestCase, GrammarParserMixin):
+class TestFastidiousParser(TestCase, GrammarParserMixin):
     klass = FastidiousParser
+
+
+class TestNewFastidiousParser(TestCase, GrammarParserMixin):
+    klass = NewFastidiousParser
