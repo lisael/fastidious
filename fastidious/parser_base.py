@@ -473,6 +473,21 @@ def indent(code, space):
     return ind + ("\n" + ind).join([l for l in code.splitlines()])
 
 
+class PySetConstants(RuleVisitor):
+    def __init__(self, parser):
+        self.parser = parser
+        self.parser._p_py_constants = dict()
+        for rule in parser.__rules__:
+            self.visit(rule)
+
+    def node_consts(self, node):
+        return self.parser._p_py_constants.setdefault(node.id, dict())
+
+    def visit_regexexpr(self, node):
+        consts = self.node_consts(node)
+        consts["regex"] = re.compile(node._full_regexp())
+
+
 class PyCodeGen(RuleVisitor):
     def __init__(self, memoize, debug):
         self.memoize = memoize
@@ -499,12 +514,10 @@ elif self.pos > head[0]:
         """.format(id).strip()
 
     def visit_rule(self, node):
-        globals_ = []
         self.visit(node.expr)
         code = """    '''{3}'''
     # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
-    {6}
     self.args_stack.setdefault("{0}",[]).append(dict())
 {1}
     args = self.args_stack["{0}"].pop()
@@ -517,19 +530,35 @@ elif self.pos > head[0]:
         # -- self.p_debug("{0}({5}) -- NO MATCH")
     return result
         """.format(node.name,
-                   indent(node.expr.as_code(self.memoize, globals_), 1),
+                   indent(node.expr._py_code, 1),
                    self._action(node.action),
                    node.as_grammar().replace("'", "\\'"),
                    indent(self.report_error(node.id), 2),
                    node.id,
-                   ", ".join(globals_),
                    )
         defline = "def {}(self):".format(node.name)
         code = "\n".join([defline, code])
         if self.debug:
             code = code.replace("# -- ", "")
-        code = code.strip()
-        node._py_code = code
+        node._py_code = code.strip()
+
+    def visit_regexexpr(self, node):
+        code = """
+# {0}
+regex = self._p_py_constants[{2}]["regex"]
+m = regex.match(self.p_suffix())
+if m:
+    result = self.p_suffix(m.end())
+    self.pos += m.end()
+else:
+{1}
+    result = self.NoMatch
+        """.format(
+            node.as_grammar(),
+            indent(self.report_error(node.id), 1),
+            node.id,
+        )
+        node._py_code = code.strip()
 
     def visit_seqexpr(self, node):
 
@@ -809,6 +838,7 @@ class NewFastidiousCompiler(object):
 
     def output(self):
         if self.gen_code:
+            PySetConstants(self.parser)
             code_gen = PyCodeGen(self.memoize, self.debug)
             builder = MethodBuilder(self.parser)
             for rule in self.parser.__rules__:
@@ -850,6 +880,8 @@ class NewParserMeta(type):
         attrs.setdefault("__rules__", [])
         attrs.setdefault("__default__", [])
         new = super(NewParserMeta, cls).__new__(cls, name, bases, attrs)
+        if not hasattr(new, "p_compiler"):
+            return new
         compiler = new.p_compiler(new)
         compiler.process_rules()
         compiler.process_actions()

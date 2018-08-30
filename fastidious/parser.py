@@ -78,9 +78,13 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
     """  # noqa
 
 
-class NewParser(six.with_metaclass(NewParserMeta, ParserMixin)):
-    """
+class BaseParser(six.with_metaclass(NewParserMeta, ParserMixin)):
+    pass
 
+
+class NewParser(BaseParser):
+    """
+    Parser
     """
     p_compiler = NewFastidiousCompiler()
 
