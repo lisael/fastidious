@@ -103,3 +103,6 @@ def parse_grammar(grammar, parser_klass=FastidiousParser):
          for line in lines[lno:]])
     rules = parser_klass.p_parse(stripped)
     return rules
+
+
+Parser = NewParser

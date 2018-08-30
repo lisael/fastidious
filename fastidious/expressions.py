@@ -12,9 +12,6 @@ except ImportError:
 import sys
 
 
-_PY3K = sys.version_info[0] == 3
-
-
 class ExprMixin(object):
     last_id = 0
 
@@ -66,28 +63,6 @@ elif self.pos > head[0]:
     def _indent(self, code, space):
         ind = " " * space * 4
         return ind + ("\n" + ind).join([l for l in code.splitlines()])
-
-    def memoize(self, code):
-        # I first memoized ALL expressions, but it was actually slower,
-        # cache hit ratio was 1/30. Caching only rules has a cache hit ratio
-        # of 1/7 and is ~1.3 faster. The test data is fastidious PEG grammar,
-        # a real life datum :)
-        if not isinstance(self, RuleExpr):
-            return code
-        pk = hash(self.as_grammar())
-        return"""
-start_pos_{2}= self.pos
-if ({0}, start_pos_{2}) in self._p_memoized:
-    result, self.pos = self._p_memoized[({0}, self.pos)]
-else:
-{1}
-    self._p_memoized[({0}, start_pos_{2})] = result, self.pos
-        """.format(
-            pk,
-            self._indent(code, 1),
-            self.id,
-            repr(self.rulename)
-        )
 
 
 class AtomicExpr(object):
@@ -206,8 +181,6 @@ result = results_{1}
             self.id,
             expressions()
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -264,8 +237,6 @@ else:
             self.as_grammar(),
             self.report_error(1)
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -297,8 +268,6 @@ else:
 {}
     result = self.NoMatch
         """.format(self.report_error(1))
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -347,8 +316,6 @@ if not result:
             self.as_grammar(),
             self.report_error(1)
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -395,8 +362,6 @@ else:
             repr(self.chars),
             self.report_error(1),
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -458,8 +423,6 @@ else:
             self.id,
             self.report_error(1)
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -509,8 +472,6 @@ while 42:
             result_line,
             self.id,
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -528,6 +489,22 @@ class RuleExpr(ExprMixin, AtomicExpr):
 
     def as_grammar(self, atomic=False):
         return self.rulename
+
+    def memoize(self, code):
+        pk = hash(self.as_grammar())
+        return"""
+start_pos_{2}= self.pos
+if ({0}, start_pos_{2}) in self._p_memoized:
+    result, self.pos = self._p_memoized[({0}, self.pos)]
+else:
+{1}
+    self._p_memoized[({0}, start_pos_{2})] = result, self.pos
+        """.format(
+            pk,
+            self._indent(code, 1),
+            self.id,
+            repr(self.rulename)
+        )
 
     def as_code(self, memoize=False, globals_=None):
         code = "result = self.{}()".format(self.rulename)
@@ -562,8 +539,6 @@ if result is self.NoMatch:
     # print self._p_error_stack
     self._p_error_stack.pop()
         """.format(self.as_grammar(), self.expr.as_code(memoize))
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -602,8 +577,6 @@ if result is self.NoMatch:
             self.as_grammar(),
             self.report_error(1)
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -645,8 +618,6 @@ if result is self.NoMatch:
             self.as_grammar(),
             self.report_error(1)
         )
-        if memoize:
-            code = self.memoize(code.strip())
         return code.strip()
 
 
@@ -723,7 +694,7 @@ class Rule(ExprMixin):
         return result
 
     def _attach_to(self, parser):
-        if _PY3K:
+        if six.PY3:
             m = FunctionType(self, globals(), self.name)
         else:
             m = UnboundMethodType(self, None, parser)
@@ -797,7 +768,7 @@ class Rule(ExprMixin):
         locals_ = dict()
         exec(code, None, locals_)
         new_method = locals_[self.name]
-        if _PY3K:
+        if six.PY3:
             new_method.__name__ = self.name
             if isinstance(parser, type):
                 meth = FunctionType(new_method.__code__, globals(), self.name)

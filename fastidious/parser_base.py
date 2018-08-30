@@ -1,8 +1,8 @@
 import re
 import string
-import sys
 
 import six
+
 
 from fastidious.expressions import (
     AnyCharExpr,
@@ -27,11 +27,12 @@ from fastidious.compiler import check_rulenames
 from fastidious.compiler.action.pyclass import SimplePyAction
 
 
-if sys.version_info[0] == 3:
+if six.PY3:
+    from types import FunctionType
     UPPERCASE = string.ascii_uppercase
     LOWERCASE = string.ascii_lowercase
 else:
-
+    from types import UnboundMethodType
     UPPERCASE = string.uppercase
     LOWERCASE = string.lowercase
 
@@ -467,10 +468,332 @@ class _FastidiousParserMixin(object):
         return self._escaped[self.p_flatten(value)]
 
 
+def indent(code, space):
+    ind = " " * space * 4
+    return ind + ("\n" + ind).join([l for l in code.splitlines()])
+
+
+class PyCodeGen(RuleVisitor):
+    def __init__(self, memoize, debug):
+        self.memoize = memoize
+        self.debug = debug
+
+    def _action(self, action):
+        from fastidious.compiler.action.pyclass import SimplePyAction
+        if action is not None:
+            if isinstance(action, SimplePyAction):
+                return action.as_code()
+        return "pass"
+
+    def report_error(self, id):
+        return """
+if self._p_error_stack:
+    head = self._p_error_stack[0]
+else:
+    head = (0, 0)
+if self.pos <= head[0]:
+    self._p_error_stack.append((self.pos, {0}))
+elif self.pos > head[0]:
+    self._p_error_stack = [(self.pos, {0})]
+# print self._p_error_stack
+        """.format(id).strip()
+
+    def visit_rule(self, node):
+        globals_ = []
+        self.visit(node.expr)
+        code = """    '''{3}'''
+    # -- self.p_debug("{0}({5})")
+    # -- self._debug_indent += 1
+    {6}
+    self.args_stack.setdefault("{0}",[]).append(dict())
+{1}
+    args = self.args_stack["{0}"].pop()
+    # -- self._debug_indent -= 1
+    if result is not self.NoMatch:
+        {2}
+        # -- self.p_debug("{0}({5}) -- MATCH " + repr(result) )
+    else:
+{4}
+        # -- self.p_debug("{0}({5}) -- NO MATCH")
+    return result
+        """.format(node.name,
+                   indent(node.expr.as_code(self.memoize, globals_), 1),
+                   self._action(node.action),
+                   node.as_grammar().replace("'", "\\'"),
+                   indent(self.report_error(node.id), 2),
+                   node.id,
+                   ", ".join(globals_),
+                   )
+        defline = "def {}(self):".format(node.name)
+        code = "\n".join([defline, code])
+        if self.debug:
+            code = code.replace("# -- ", "")
+        code = code.strip()
+        node._py_code = code
+
+    def visit_seqexpr(self, node):
+
+        def expressions():
+            exprs = []
+            for i, expr in enumerate(node.exprs):
+                self.visit(expr)
+                expr_code = """
+{0}
+if result is self.NoMatch:
+    results_{1} = self.NoMatch
+    self.p_restore()
+{2}
+else:
+    results_{1}.append(result)
+                    """.format(expr._py_code, node.id,
+                               indent(self.report_error(node.id).strip(), 1))
+                exprs.append(indent(expr_code, i))
+            return "\n".join(exprs)
+
+        code = """
+# {0}
+self.p_save()
+results_{1} = []
+{2}
+if results_{1} is not self.NoMatch:
+    self.p_discard()
+result = results_{1}
+        """.format(
+            node.as_grammar(),
+            node.id,
+            expressions()
+        )
+        node._py_code = code.strip()
+
+    def visit_ruleexpr(self, node):
+        node._py_code = "result = self.{}()".format(node.rulename).strip()
+
+    def visit_labeledexpr(self, node):
+        self.visit(node.expr)
+        code = """
+# {}
+{}
+self.args_stack[{}][-1][{}] = result
+        """.format(
+            node.as_grammar(),
+            node.expr._py_code,
+            repr(node.rulename),
+            repr(node.name)
+        )
+        node._py_code = code.strip()
+
+    def visit_oneormoreexpr(self, node):
+        self.visit(node.expr)
+        if isinstance(node.expr, (CharRangeExpr, AnyCharExpr)):
+            result_line = 'result = "".join(results_{})'.format(node.id)
+        else:
+            result_line = 'result = results_{}'.format(node.id)
+        code = """
+# {0}
+self.p_save()
+results_{3} = []
+while 42:
+{1}
+    if result is not self.NoMatch:
+        results_{3}.append(result)
+    else:
+        break
+if not results_{3}:
+    self.p_restore()
+{4}
+    result = self.NoMatch
+else:
+    self.p_discard()
+    {2}
+        """.format(
+            node.as_grammar(),
+            indent(node.expr._py_code, 1),
+            result_line,
+            node.id,
+            indent(self.report_error(node.id), 1)
+        )
+        node._py_code = code.strip()
+
+    def visit_maybeexpr(self, node):
+        self.visit(node.expr)
+        code = """
+# {}
+{}
+result = "" if result is self.NoMatch else result
+if result is self.NoMatch:
+    # print self._p_error_stack
+    self._p_error_stack.pop()
+        """.format(node.as_grammar(), node.expr._py_code)
+        node._py_code = code.strip()
+
+    def visit_literalexpr(self, node):
+        if node.lit == "":
+            return "result = ''"
+        code = """
+# {2}
+result = self.p_startswith({0}, {1})
+if not result:
+{3}
+    result = self.NoMatch
+        """.format(
+            repr(node.lit),
+            repr(node.ignorecase),
+            node.as_grammar(),
+            indent(self.report_error(node.id), 1)
+        )
+        node._py_code = code.strip()
+
+    def visit_not(self, node):
+        self.visit(node.expr)
+        code = """
+# {1}
+self.p_save()
+{0}
+result = "" if result is self.NoMatch else self.NoMatch
+self.p_restore()
+if result is self.NoMatch:
+{2}
+#else:
+    #print self._p_error_stack
+    #self._p_error_stack.pop()
+        """.format(
+            node.expr._py_code,
+            node.as_grammar(),
+            indent(self.report_error(node.id), 1)
+        )
+        node._py_code = code.strip()
+
+    def visit_charrangeexpr(self, node):
+        code = """
+# {0}
+self.p_save()
+n = self.p_next()
+if n is not None and n in {1}:
+    self.p_discard()
+    result = n
+else:
+    self.p_restore()
+{2}
+    result = self.NoMatch
+        """.format(
+            node.as_grammar(),
+            repr(node.chars),
+            indent(self.report_error(node.id), 1)
+        )
+        node._py_code = code.strip()
+
+    def visit_zeroormoreexpr(self, node):
+        self.visit(node.expr)
+        if isinstance(node.expr, (CharRangeExpr, AnyCharExpr)):
+            result_line = 'result = "".join(results_{})'.format(node.id)
+        else:
+            result_line = 'result = results_{}'.format(node.id)
+        code = """
+# {0}
+results_{3} = []
+while 42:
+{1}
+    if result is not self.NoMatch:
+        results_{3}.append(result)
+    else:
+        break
+# print self._p_error_stack
+{2}
+        """.format(
+            node.as_grammar(),
+            indent(node.expr._py_code, 1),
+            result_line,
+            node.id,
+        )
+        node._py_code = code.strip()
+
+    def visit_choiceexpr(self, node):
+        def expressions():
+            exprs = []
+            for i, expr in enumerate(node.exprs):
+                self.visit(expr)
+                expr_code = """
+{}
+if result is self.NoMatch:
+                """.format(expr._py_code).strip()
+                exprs.append(indent(expr_code, i))
+            exprs.append(indent("pass", i + 1))
+            return "\n".join(exprs)
+
+        code = """
+# {1}
+self.p_save()
+result = self.NoMatch
+{0}
+if result is self.NoMatch:
+    self.p_restore()
+{2}
+else:
+    self.p_discard()
+        """.format(
+            expressions(),
+            node.as_grammar(),
+            indent(self.report_error(node.id), 1)
+        )
+        node._py_code = code.strip()
+
+    def visit_anycharexpr(self, node):
+        code = """
+# .
+self.p_save()
+n = self.p_next()
+if n is not None:
+    self.p_discard()
+    result = n
+else:
+    self.p_restore()
+{}
+    result = self.NoMatch
+        """.format(indent(self.report_error(node.id), 1))
+        node._py_code = code.strip()
+
+    def visit_lookahead(self, node):
+        self.visit(node.expr)
+        code = """
+# {1}
+self.p_save()
+{0}
+result = result if result is self.NoMatch else ""
+self.p_restore()
+if result is self.NoMatch:
+{2}
+        """.format(
+            node.expr._py_code,
+            node.as_grammar(),
+            indent(self.report_error(node.id), 1)
+        )
+        node._py_code = code.strip()
+
+
+class MethodBuilder(RuleVisitor):
+    def __init__(self, parser):
+        self.parser = parser
+
+    def visit_rule(self, node):
+        locals_ = dict()
+        exec(node._py_code, None, locals_)
+        new_method = locals_[node.name]
+        if six.PY3:
+            new_method.__name__ = node.name
+            meth = FunctionType(new_method.__code__, globals(), node.name)
+        else:
+            new_method._code = node._py_code  # noqa
+            new_method.func_name = node.name  # noqa
+            meth = UnboundMethodType(new_method, None, self.parser)  # noqa
+        setattr(self.parser, node.name, meth)
+
+
 class NewFastidiousCompiler(object):
-    def __init__(self, gen_code=True):
+    def __init__(self, gen_code=True, memoize=True, debug=False):
         self.parser = None
         self.gen_code = gen_code
+        self.memoize = memoize
+        self.debug = debug
 
     def process_rules(self):
         rules = self.parser.__rules__
@@ -485,10 +808,14 @@ class NewFastidiousCompiler(object):
         SimplePyAction.update_rules(self.parser, rules)
 
     def output(self):
-        for rule in self.parser.__rules__:
-            if self.gen_code:
-                rule.as_method(self.parser)
-            else:
+        if self.gen_code:
+            code_gen = PyCodeGen(self.memoize, self.debug)
+            builder = MethodBuilder(self.parser)
+            for rule in self.parser.__rules__:
+                code_gen.visit(rule)
+                builder.visit(rule)
+        else:
+            for rule in self.parser.__rules__:
                 rule._attach_to(self.parser)
         return self.parser
 
