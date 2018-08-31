@@ -595,7 +595,22 @@ result = results_{1}
         node._py_code = code.strip()
 
     def visit_ruleexpr(self, node):
-        node._py_code = "result = self.{}()".format(node.rulename).strip()
+        code = "result = self.{}()".format(node.rulename).strip()
+        if self.memoize:
+            pk = hash(node.as_grammar())
+            code = """
+start_pos_{2}= self.pos
+if ({0}, start_pos_{2}) in self._p_memoized:
+    result, self.pos = self._p_memoized[({0}, self.pos)]
+else:
+{1}
+    self._p_memoized[({0}, start_pos_{2})] = result, self.pos
+    """.format(
+                pk,
+                indent(code, 1),
+                node.id,
+            )
+        node._py_code = code.strip()
 
     def visit_labeledexpr(self, node):
         self.visit(node.expr)
@@ -800,8 +815,9 @@ if result is self.NoMatch:
 
 
 class MethodBuilder(RuleVisitor):
-    def __init__(self, parser):
+    def __init__(self, parser, memoize):
         self.parser = parser
+        self.memoize = memoize
 
     def visit_rule(self, node):
         locals_ = dict()
@@ -814,6 +830,8 @@ class MethodBuilder(RuleVisitor):
             new_method._code = node._py_code  # noqa
             new_method.func_name = node.name  # noqa
             meth = UnboundMethodType(new_method, None, self.parser)  # noqa
+        # if self.memoize:
+        #     meth = memoize_rule(meth)
         setattr(self.parser, node.name, meth)
 
 
@@ -840,7 +858,7 @@ class NewFastidiousCompiler(object):
         if self.gen_code:
             PySetConstants(self.parser)
             code_gen = PyCodeGen(self.memoize, self.debug)
-            builder = MethodBuilder(self.parser)
+            builder = MethodBuilder(self.parser, self.memoize)
             for rule in self.parser.__rules__:
                 code_gen.visit(rule)
                 builder.visit(rule)

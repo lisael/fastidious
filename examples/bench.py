@@ -2,32 +2,32 @@
 import gc
 from timeit import repeat
 
-from fastidious.parser import _GrammarParser
-from fastidious.bootstrap import _GrammarParserBootstraper
+from fastidious.parser import FastidiousParser, BaseParser, NewParser
+from fastidious.parser_base import NewFastidiousCompiler
+from fastidious.bootstrap import _FastidiousParserBootstraper
 from fastidious import Parser
 
 grammar = '\n'.join(
-    [l.strip() for l in _GrammarParser.__grammar__.splitlines()])
+    [l.strip() for l in FastidiousParser.__grammar__.splitlines()])
 
 kb = len(grammar) / 1024.0
 
 
-class NoCodeGen(Parser):
-    __code_gen__ = False
+class NoCodeGen(BaseParser):
+    p_compiler = NewFastidiousCompiler(gen_code=False)
     __grammar__ = grammar
 
 
-class Default(Parser):
+class Default(NewParser):
     __grammar__ = grammar
 
 
-class NotMemoized(Parser):
-    __memoize__ = False
+class NotMemoized(BaseParser):
+    p_compiler = NewFastidiousCompiler(memoize=False)
     __grammar__ = grammar
 
 
 class NotJSONParser(Parser):
-    __inline__ = True
     __grammar__ = r"""
         value <- _ (string / number / object / array / true_false_null) _
 
@@ -55,36 +55,37 @@ class NotJSONParser(Parser):
     """
 
 
-class NotJSONNoCodeGenParser(Parser):
-    __code_gen__ = False
+class NotJSONNoCodeGenParser(BaseParser):
+    # __code_gen__ = False
+    p_compiler = NewFastidiousCompiler(gen_code=False)
     __grammar__ = NotJSONParser.__grammar__
 
 
 class NotJSONNoMemoizedParser(Parser):
-    __memoize__ = False
+    p_compiler = NewFastidiousCompiler(memoize=False)
     __grammar__ = NotJSONParser.__grammar__
 
 
 father = """{
-    "id" : 1,
-    "married" : true,
-    "name" : "Larry Lopez",
-    "sons" : null,
-    "daughters" : [
-        {
-        "age" : 26,
-        "name" : "Sandra"
-        },
-        {
-        "age" : 25,
-        "name" : "Margaret"
-        },
-        {
-        "age" : 6,
-        "name" : "Mary"
-        }
-        ]
-    }"""
+        "id" : 1,
+        "married" : true,
+        "name" : "Larry Lopez",
+        "sons" : null,
+        "daughters" : [
+            {
+            "age" : 26,
+            "name" : "Sandra"
+            },
+            {
+            "age" : 25,
+            "name" : "Margaret"
+            },
+            {
+            "age" : 6,
+            "name" : "Mary"
+            }
+            ]
+        }"""
 more_fathers = ','.join([father] * 60)
 json = '{"fathers" : [' + more_fathers + ']}'
 
@@ -99,7 +100,7 @@ def benchit(klass, source, entry_point, ref=None):
     gc.collect()
 
     NUMBER = 1
-    REPEAT = 2
+    REPEAT = 5
     total_seconds = min(repeat(lambda: entry_point(klass(source)),
                                lambda: gc.enable(),
                                repeat=REPEAT,
@@ -125,8 +126,8 @@ if __name__ == "__main__":
     ref = benchit(NotJSONParser, json, "value")
     benchit(NotJSONNoCodeGenParser, json, "value", ref)
     benchit(NotJSONNoMemoizedParser, json, "value", ref)
-    ref = benchit(_GrammarParser, grammar, "grammar", "(base)")
-    benchit(_GrammarParserBootstraper, grammar, "grammar", ref)
+    ref = benchit(FastidiousParser, grammar, "grammar", "(base)")
+    benchit(_FastidiousParserBootstraper, grammar, "grammar", ref)
     ref = benchit(Default, grammar, "grammar", "(base)")
     benchit(NoCodeGen, grammar, "grammar", ref)
     benchit(NotMemoized, grammar, "grammar", ref)
