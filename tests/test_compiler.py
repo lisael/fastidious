@@ -30,7 +30,7 @@ class TestRulesChecker(TestCase):
         rules = parse_grammar(grammar)
         with self.assertRaisesRegexp(
                 UnknownRule,
-                "Rule `c` referenced in a is not defined"):
+                "Rule `[bc]` referenced in a is not defined"):
             check_rulenames(rules)
 
 

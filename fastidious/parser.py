@@ -3,14 +3,20 @@ import re
 import six
 
 from fastidious.parser_base import (_FastidiousParserMixin, ParserMeta,
-                                    ParserMixin, NewParserMeta,
-                                    NewFastidiousCompiler)
+                                    ParserMixin)
+
+from fastidious.compiler.fastidious import FastidiousCompiler
 
 
-class Parser(six.with_metaclass(ParserMeta, ParserMixin)):
+class BaseParser(six.with_metaclass(ParserMeta, ParserMixin)):
+    pass
+
+
+class Parser(BaseParser):
     """
-    Base class for parsers. It calls the metaclass that generates the code
+    Parser
     """
+    p_compiler = FastidiousCompiler()
 
 
 class FastidiousParser(Parser, _FastidiousParserMixin):
@@ -78,21 +84,6 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
     """  # noqa
 
 
-class BaseParser(six.with_metaclass(NewParserMeta, ParserMixin)):
-    pass
-
-
-class NewParser(BaseParser):
-    """
-    Parser
-    """
-    p_compiler = NewFastidiousCompiler()
-
-
-class NewFastidiousParser(NewParser, _FastidiousParserMixin):
-    __grammar__ = FastidiousParser.__grammar__
-
-
 def parse_grammar(grammar, parser_klass=FastidiousParser):
     lines = grammar.split('\n')
     lines.append("")
@@ -107,6 +98,3 @@ def parse_grammar(grammar, parser_klass=FastidiousParser):
          for line in lines[lno:]])
     rules = parser_klass.p_parse(stripped)
     return rules
-
-
-Parser = NewParser

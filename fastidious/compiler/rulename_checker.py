@@ -1,4 +1,4 @@
-from fastidious.utils import RuleVisitor
+from fastidious.compiler.astutils import Visitor
 
 
 class DuplicateRule(Exception):
@@ -9,7 +9,7 @@ class UnknownRule(Exception):
     pass
 
 
-class RuleNameChecker(RuleVisitor):
+class RuleNameChecker(Visitor):
     def __init__(self):
         self.current_rule = None
         self.rulenames = []

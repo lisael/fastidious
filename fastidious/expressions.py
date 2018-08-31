@@ -9,9 +9,6 @@ except ImportError:
     from types import MethodType, FunctionType
 
 
-import sys
-
-
 class ExprMixin(object):
     last_id = 0
 
@@ -43,6 +40,13 @@ class ExprMixin(object):
             ExprMixin.last_id += 1
         return self._id
 
+    def _children(self):
+        if hasattr(self, "expr"):
+            return [self.expr]
+        if hasattr(self, "exprs"):
+            return self.exprs
+        return []
+
     def report_error(self, indent=0):
         if not self.report_errors:
             code = "pass"
@@ -67,16 +71,6 @@ elif self.pos > head[0]:
 
 class AtomicExpr(object):
     """Marker class for atomic expressions"""
-
-
-class Expression(object):
-    def __init__(self, rule, pos, argname=None):
-        self.argname = argname
-        self.pos = pos
-        self.rule = rule
-
-    def method_name(self):
-        return "_expr_{}_{}".format(self.rule.name, self.pos)
 
 
 class RegexExpr(ExprMixin):
@@ -104,23 +98,6 @@ class RegexExpr(ExprMixin):
         if self.flags is not None:
             return "(?{}){}".format(self.flags, self.lit)
         return self.lit
-
-    def as_code(self, memoize=False, globals_=None):
-        globals_.append("regex=re.compile({})".format(
-            repr(self._full_regexp())))
-        return """
-# {0}
-m = regex.match(self.p_suffix())
-if m:
-    result = self.p_suffix(m.end())
-    self.pos += m.end()
-else:
-{1}
-    result = self.NoMatch
-        """.format(
-            self.as_grammar(),
-            self.report_error(1),
-        )
 
 
 class SeqExpr(ExprMixin):
@@ -151,38 +128,6 @@ class SeqExpr(ExprMixin):
             return "( {} )".format(g)
         return g
 
-    def as_code(self, memoize=False, globals_=None):
-        def expressions():
-            exprs = []
-            for i, expr in enumerate(self.exprs):
-                expr_code = """
-{0}
-if result is self.NoMatch:
-    results_{1} = self.NoMatch
-    self.p_restore()
-{2}
-else:
-    results_{1}.append(result)
-                    """.format(expr.as_code(memoize), self.id,
-                               self.report_error(1)).strip()
-                exprs.append(self._indent(expr_code, i))
-            return "\n".join(exprs)
-
-        code = """
-# {0}
-self.p_save()
-results_{1} = []
-{2}
-if results_{1} is not self.NoMatch:
-    self.p_discard()
-result = results_{1}
-        """.format(
-            self.as_grammar(),
-            self.id,
-            expressions()
-        )
-        return code.strip()
-
 
 class ChoiceExpr(ExprMixin):
     def __init__(self, *exprs, **kwargs):
@@ -209,35 +154,6 @@ class ChoiceExpr(ExprMixin):
         if atomic and len(self.exprs) > 1:
             return "( {} )".format(g)
         return g
-
-    def as_code(self, memoize=False, globals_=None):
-        def expressions():
-            exprs = []
-            for i, expr in enumerate(self.exprs):
-                expr_code = """
-{}
-if result is self.NoMatch:
-                """.format(expr.as_code(memoize)).strip()
-                exprs.append(self._indent(expr_code, i))
-            exprs.append(self._indent("pass", i + 1))
-            return "\n".join(exprs)
-
-        code = """
-# {1}
-self.p_save()
-result = self.NoMatch
-{0}
-if result is self.NoMatch:
-    self.p_restore()
-{2}
-else:
-    self.p_discard()
-        """.format(
-            expressions(),
-            self.as_grammar(),
-            self.report_error(1)
-        )
-        return code.strip()
 
 
 class AnyCharExpr(ExprMixin, AtomicExpr):
@@ -301,23 +217,6 @@ class LiteralExpr(ExprMixin, AtomicExpr):
             return '"{}"'.format(lit)
         return """'"'"""
 
-    def as_code(self, memoize=False, globals_=None):
-        if self.lit == "":
-            return "result = ''"
-        code = """
-# {2}
-result = self.p_startswith({0}, {1})
-if not result:
-{3}
-    result = self.NoMatch
-        """.format(
-            repr(self.lit),
-            repr(self.ignorecase),
-            self.as_grammar(),
-            self.report_error(1)
-        )
-        return code.strip()
-
 
 class CharRangeExpr(ExprMixin, AtomicExpr):
     def __init__(self, chars, terminal=False):
@@ -344,25 +243,6 @@ class CharRangeExpr(ExprMixin, AtomicExpr):
         chars = chars.replace("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "A-Z")
         chars = chars.replace("0123456789", "0-9")
         return "[{}]".format(chars)
-
-    def as_code(self, memoize=False, globals_=None):
-        code = """
-# {0}
-self.p_save()
-n = self.p_next()
-if n is not None and n in {1}:
-    self.p_discard()
-    result = n
-else:
-    self.p_restore()
-{2}
-    result = self.NoMatch
-        """.format(
-            self.as_grammar(),
-            repr(self.chars),
-            self.report_error(1),
-        )
-        return code.strip()
 
 
 class OneOrMoreExpr(ExprMixin):
@@ -394,37 +274,6 @@ class OneOrMoreExpr(ExprMixin):
     def as_grammar(self, atomic=False):
         return "{}+".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False, globals_=None):
-        if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
-            result_line = 'result = "".join(results_{})'.format(self.id)
-        else:
-            result_line = 'result = results_{}'.format(self.id)
-        code = """
-# {0}
-self.p_save()
-results_{3} = []
-while 42:
-{1}
-    if result is not self.NoMatch:
-        results_{3}.append(result)
-    else:
-        break
-if not results_{3}:
-    self.p_restore()
-{4}
-    result = self.NoMatch
-else:
-    self.p_discard()
-    {2}
-        """.format(
-            self.as_grammar(),
-            self._indent(self.expr.as_code(memoize), 1),
-            result_line,
-            self.id,
-            self.report_error(1)
-        )
-        return code.strip()
-
 
 class ZeroOrMoreExpr(ExprMixin):
     def __init__(self, expr):
@@ -449,30 +298,6 @@ class ZeroOrMoreExpr(ExprMixin):
 
     def as_grammar(self, atomic=False):
         return "{}*".format(self.expr.as_grammar(True))
-
-    def as_code(self, memoize=False, globals_=None):
-        if isinstance(self.expr, (CharRangeExpr, AnyCharExpr)):
-            result_line = 'result = "".join(results_{})'.format(self.id)
-        else:
-            result_line = 'result = results_{}'.format(self.id)
-        code = """
-# {0}
-results_{3} = []
-while 42:
-{1}
-    if result is not self.NoMatch:
-        results_{3}.append(result)
-    else:
-        break
-# print self._p_error_stack
-{2}
-        """.format(
-            self.as_grammar(),
-            self._indent(self.expr.as_code(memoize), 1),
-            result_line,
-            self.id,
-        )
-        return code.strip()
 
 
 class RuleExpr(ExprMixin, AtomicExpr):
@@ -506,12 +331,6 @@ else:
             repr(self.rulename)
         )
 
-    def as_code(self, memoize=False, globals_=None):
-        code = "result = self.{}()".format(self.rulename)
-        if memoize:
-            code = self.memoize(code.strip())
-        return code.strip()
-
 
 class MaybeExpr(ExprMixin):
     def __init__(self, expr):
@@ -529,17 +348,6 @@ class MaybeExpr(ExprMixin):
 
     def as_grammar(self, atomic=False):
         return "{}?".format(self.expr.as_grammar(True))
-
-    def as_code(self, memoize=False, globals_=None):
-        code = """
-# {}
-{}
-result = "" if result is self.NoMatch else result
-if result is self.NoMatch:
-    # print self._p_error_stack
-    self._p_error_stack.pop()
-        """.format(self.as_grammar(), self.expr.as_code(memoize))
-        return code.strip()
 
 
 class LookAhead(ExprMixin):
@@ -563,22 +371,6 @@ class LookAhead(ExprMixin):
     def as_grammar(self, atomic=False):
         return "&{}".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False, globals_=None):
-        code = """
-# {1}
-self.p_save()
-{0}
-result = result if result is self.NoMatch else ""
-self.p_restore()
-if result is self.NoMatch:
-{2}
-        """.format(
-            self.expr.as_code(memoize),
-            self.as_grammar(),
-            self.report_error(1)
-        )
-        return code.strip()
-
 
 class Not(ExprMixin):
     def __init__(self, expr, terminal=False):
@@ -601,25 +393,6 @@ class Not(ExprMixin):
     def as_grammar(self, atomic=False):
         return "!{}".format(self.expr.as_grammar(True))
 
-    def as_code(self, memoize=False, globals_=None):
-        code = """
-# {1}
-self.p_save()
-{0}
-result = "" if result is self.NoMatch else self.NoMatch
-self.p_restore()
-if result is self.NoMatch:
-{2}
-#else:
-    #print self._p_error_stack
-    #self._p_error_stack.pop()
-        """.format(
-            self.expr.as_code(memoize),
-            self.as_grammar(),
-            self.report_error(1)
-        )
-        return code.strip()
-
 
 class LabeledExpr(ExprMixin, AtomicExpr):
     def __init__(self, name, expr, rulename=None, terminal=False):
@@ -640,19 +413,6 @@ class LabeledExpr(ExprMixin, AtomicExpr):
 
     def as_grammar(self, atomic=False):
         return "{}:{}".format(self.name, self.expr.as_grammar(True))
-
-    def as_code(self, memoize=False, globals_=None):
-        code = """
-# {}
-{}
-self.args_stack[{}][-1][{}] = result
-        """.format(
-            self.as_grammar(),
-            self.expr.as_code(memoize),
-            repr(self.rulename),
-            repr(self.name)
-        )
-        return code.strip()
 
 
 class Rule(ExprMixin):
@@ -723,66 +483,6 @@ class Rule(ExprMixin):
             return [self.alias]
         else:
             return self.expr.expected
-
-    def as_code(self, memoize=True, debug=False):
-        globals_ = []
-        code = """    '''{3}'''
-    # -- self.p_debug("{0}({5})")
-    # -- self._debug_indent += 1
-    {6}
-    self.args_stack.setdefault("{0}",[]).append(dict())
-{1}
-    args = self.args_stack["{0}"].pop()
-    if result is not self.NoMatch:
-        {2}
-        # -- self._debug_indent -= 1
-        # -- self.p_debug("{0}({5}) -- MATCH " + repr(result) )
-    else:
-{4}
-        # -- self._debug_indent -= 1
-        # -- self.p_debug("{0}({5}) -- NO MATCH")
-    return result
-        """.format(self.name,
-                   self._indent(self.expr.as_code(memoize, globals_), 1),
-                   self._action(),
-                   self.as_grammar().replace("'", "\\'"),
-                   self.report_error(2),
-                   self.id,
-                   ", ".join(globals_),
-                   )
-        defline = "def {}(self):".format(self.name)
-        code = "\n".join([defline, code])
-        if debug:
-            code = code.replace("# -- ", "")
-        code = code.strip()
-        return code
-
-    def as_method(self, parser):
-        memoize = parser.__memoize__
-        debug = parser.__debug___
-        if not self.action:
-            default_action = "on_{}".format(self.name)
-            if hasattr(parser, default_action):
-                self.action = default_action
-        code = self.as_code(memoize, debug)
-        locals_ = dict()
-        exec(code, None, locals_)
-        new_method = locals_[self.name]
-        if six.PY3:
-            new_method.__name__ = self.name
-            if isinstance(parser, type):
-                meth = FunctionType(new_method.__code__, globals(), self.name)
-            else:
-                meth = MethodType(new_method, parser)  # noqa
-        else:
-            code = code.replace("new_method", self.name)
-            new_method._code = code  # noqa
-            new_method.func_name = self.name  # noqa
-            if isinstance(parser, type):
-                meth = UnboundMethodType(new_method, None, parser)  # noqa
-            else:
-                meth = MethodType(new_method, parser, type(parser))  # noqa
-        setattr(parser, self.name, meth)
 
     def as_grammar(self):
         if self.action == "on_{}".format(self.name):

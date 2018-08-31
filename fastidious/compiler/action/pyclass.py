@@ -4,13 +4,13 @@ Define actions used in generated python fastidious parser classes.
 
 from six import string_types
 
-from fastidious.utils import RuleVisitor
+from fastidious.compiler.astutils import Visitor
 from .base import Action, ActionError
 
 
 class SimpleAction(Action):
 
-    class Visitor(RuleVisitor):
+    class Visitor(Visitor):
         def __init__(self, parser_class):
             self.parser = parser_class
             self.labels = []
@@ -69,7 +69,7 @@ class _SimpleMethAction(SimpleAction):
 
 class SimplePyAction(Action):
 
-    class Visitor(RuleVisitor):
+    class Visitor(Visitor):
         def visit_rule(self, node):
             if isinstance(node.action, _SimpleArgAction):
                 node.action = _SimplePyArgAction(node.action.argname)

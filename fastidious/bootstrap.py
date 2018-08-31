@@ -18,10 +18,13 @@ from fastidious.expressions import (
 from fastidious.parser_base import (ParserMeta, ParserMixin,
                                     _FastidiousParserMixin)
 
+from fastidious.compiler.fastidious import FastidiousCompiler
+
 
 class _FastidiousParserBootstraper(
         six.with_metaclass(ParserMeta, ParserMixin, _FastidiousParserMixin)):
 
+    p_compiler = FastidiousCompiler()
     __rules__ = [
 
         # grammar <- __ rules:( rule __ )+

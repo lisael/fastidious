@@ -2,8 +2,8 @@
 import gc
 from timeit import repeat
 
-from fastidious.parser import FastidiousParser, BaseParser, NewParser
-from fastidious.parser_base import NewFastidiousCompiler
+from fastidious.parser import FastidiousParser, BaseParser, Parser
+from fastidious.parser_base import FastidiousCompiler
 from fastidious.bootstrap import _FastidiousParserBootstraper
 from fastidious import Parser
 
@@ -14,16 +14,16 @@ kb = len(grammar) / 1024.0
 
 
 class NoCodeGen(BaseParser):
-    p_compiler = NewFastidiousCompiler(gen_code=False)
+    p_compiler = FastidiousCompiler(gen_code=False)
     __grammar__ = grammar
 
 
-class Default(NewParser):
+class Default(Parser):
     __grammar__ = grammar
 
 
 class NotMemoized(BaseParser):
-    p_compiler = NewFastidiousCompiler(memoize=False)
+    p_compiler = FastidiousCompiler(memoize=False)
     __grammar__ = grammar
 
 
@@ -57,12 +57,12 @@ class NotJSONParser(Parser):
 
 class NotJSONNoCodeGenParser(BaseParser):
     # __code_gen__ = False
-    p_compiler = NewFastidiousCompiler(gen_code=False)
+    p_compiler = FastidiousCompiler(gen_code=False)
     __grammar__ = NotJSONParser.__grammar__
 
 
 class NotJSONNoMemoizedParser(Parser):
-    p_compiler = NewFastidiousCompiler(memoize=False)
+    p_compiler = FastidiousCompiler(memoize=False)
     __grammar__ = NotJSONParser.__grammar__
 
 

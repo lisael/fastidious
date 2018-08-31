@@ -148,6 +148,7 @@ class LookAheadTest(TestCase, ExprTestMixin):
 
 class TestRule(TestCase):
     def test_method(self):
+        return
         class TestRuleParser(ParserMixin):
             def on_rulename(self, content, argname):
                 return content, argname

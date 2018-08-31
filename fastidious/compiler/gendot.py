@@ -2,7 +2,7 @@ import six
 
 from fastidious.expressions import (Not, ZeroOrMoreExpr, LabeledExpr, SeqExpr,
                                     ChoiceExpr, MaybeExpr, OneOrMoreExpr)
-from fastidious.utils import Visitor
+from fastidious.compiler.astutils import Visitor
 
 
 class ParserGraphVisitor(Visitor):

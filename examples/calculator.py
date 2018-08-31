@@ -1,8 +1,8 @@
 #! /usr/bin/env python
-from fastidious.parser import NewParser
+from fastidious import Parser
 
 
-class Calculator(NewParser):
+class Calculator(Parser):
     # __grammar__ is the PEG definition. Each `rulename <- a rule`
     # adds a method `Calculator.rulename()`. This methods tries to
     # match the input at current position
