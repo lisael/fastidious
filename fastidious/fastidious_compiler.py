@@ -9,9 +9,9 @@ import six
 
 from fastidious.expressions import CharRangeExpr, AnyCharExpr
 from fastidious.compiler.astutils import Visitor
-from fastidious.compiler import check_rulenames
+from fastidious.compilers import check_rulenames
 from fastidious.compiler.action.pyclass import SimplePyAction
-from .pyutils import indent
+from fastidious.compiler.pyutils import indent
 
 if six.PY3:
     from types import FunctionType

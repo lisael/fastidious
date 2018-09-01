@@ -1,8 +1,8 @@
 from unittest import TestCase
 
 from fastidious.parser import parse_grammar
-from fastidious.compiler import check_rulenames, gendot
-from fastidious.compiler.rulename_checker import DuplicateRule, UnknownRule
+from fastidious.compilers import check_rulenames, gendot
+from fastidious.compilers.rulename_checker import DuplicateRule, UnknownRule
 
 
 class TestRulesChecker(TestCase):

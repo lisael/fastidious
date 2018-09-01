@@ -18,7 +18,7 @@ from fastidious.expressions import (
 from fastidious.parser_base import (ParserMeta, ParserMixin,
                                     _FastidiousParserMixin)
 
-from fastidious.compiler.fastidious import FastidiousCompiler
+from fastidious.fastidious_compiler import FastidiousCompiler
 
 
 class _FastidiousParserBootstraper(

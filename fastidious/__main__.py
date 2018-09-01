@@ -3,7 +3,7 @@ import argparse
 import inspect
 
 from fastidious.parser import ParserMeta, Parser, ParserMixin
-from fastidious.compiler import gendot
+from fastidious.compilers import gendot
 
 
 FASTIDIOUS_MAGIC = ["__grammar__", "__default__"]

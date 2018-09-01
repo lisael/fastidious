@@ -5,7 +5,7 @@ import six
 from fastidious.parser_base import (_FastidiousParserMixin, ParserMeta,
                                     ParserMixin)
 
-from fastidious.compiler.fastidious import FastidiousCompiler
+from fastidious.fastidious_compiler import FastidiousCompiler
 
 
 class BaseParser(six.with_metaclass(ParserMeta, ParserMixin)):
