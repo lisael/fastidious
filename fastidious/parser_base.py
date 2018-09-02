@@ -223,7 +223,7 @@ class ParserMixin(object):
             if pos < current_pos:
                 break
             try:
-                expr = self.__expressions__[id]
+                expr = self._p_expressions[id]
             except KeyError:
                 continue
             else:
@@ -239,7 +239,7 @@ class ParserMixin(object):
                     continue
                 current_pos = pos
                 try:
-                    expr = self.__expressions__[id]
+                    expr = self._p_expressions[id]
                 except KeyError:
                     continue
                 else:

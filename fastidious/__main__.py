@@ -1,24 +1,12 @@
+import sys
 import argparse
 
-import inspect
 
-from fastidious.parser import ParserMeta, Parser, ParserMixin
+from fastidious.parser import ParserMeta, Parser
 from fastidious.compilers import gendot
 
 
 FASTIDIOUS_MAGIC = ["__grammar__", "__default__"]
-
-
-def _get_expr_kwargs(e):
-    kwargs = dict(
-        is_syntaxic_terminal=e.is_syntaxic_terminal,
-        expected=repr(e.expected)
-    )
-    if hasattr(e, "expr"):
-        kwargs["expr"] = True
-    if hasattr(e, "exprs"):
-        kwargs["exprs"] = True
-    return ", ".join(["%s=%s" % (k, v) for k, v in kwargs.items()])
 
 
 def load_class(klass):
@@ -44,39 +32,23 @@ def load_parser(klass):
     return parser_from_template(load_class(klass))
 
 
-def generate(klass):
+def generate(klass, executable):
     template = load_class(klass)
-    print("import re")
-    print("import six\n\n")
-    print("class _Expr:")
-    print("    def __init__(self, **kwargs):")
-    print("        for k, v in kwargs.items():")
-    print("            self.__dict__[k] = v\n\n")
-    tmpl_decl, tmpl_body = inspect.getsource(template).split("\n", 1)
-    parser = parser_from_template(template)
-    if parser is template:
-        tmpl_decl = "class %s(object):" % template.__name__
-    print(tmpl_decl)
-    print(tmpl_body)
-    print("    __expressions__ = {")
-    for k, v in parser.__expressions__.items():
-        print("        %s: %s," % (k, "_Expr(%s)" % _get_expr_kwargs(v)))
-    print("    }")
-    print("    __default__ = '%s'" % parser.__default__)
-    print("    class ParserError(Exception): pass")
-    mixin_def, mixin_body = inspect.getsource(ParserMixin).split("\n", 1)
-    mixin_body = mixin_body.replace("ParserError", "self.ParserError")
-    print(mixin_body)
+    if not hasattr(template.p_compiler, "gen_py_code"):
+        raise NotImplementedError(
+            "%s's compiler doesn't expose gen_py_code capability" % template)
 
-    for rule in parser.__rules__:
-        code = rule.as_code(template)
-        for line in code.splitlines():
-            if line.strip().startswith("# --"):
-                continue
-            print("    " + line)
-        print("")
+    if executable:
+        sys.stdout.write("#! /usr/bin/python\n")
 
-    return parser
+    template.p_compiler.gen_py_code(template, sys.stdout)
+
+    if executable:
+        sys.stdout.write("""
+import sys
+res = Calculator.p_parse(" ".join(sys.argv[1:]))
+print(res)
+""")
 
 
 def graph(klass):
@@ -85,9 +57,10 @@ def graph(klass):
     return dot
 
 
+# pragma: nocover
 if __name__ == "__main__":
     def _generate(args):
-        generate(args.classname)
+        generate(args.classname, args.executable)
 
     def _graph(args):
         print(graph(args.classname))
@@ -103,6 +76,10 @@ if __name__ == "__main__":
     parser_generate = subparsers.add_parser(
         'generate',
         help="Generate a standalone parser")
+    parser_generate.add_argument("--executable", "-e",
+                                 default=False,
+                                 action="store_true",
+                                 help="Name of the parser class to generate")
     parser_generate.add_argument("classname",
                                  help="Name of the parser class to generate")
     parser_generate.set_defaults(func=_generate)
