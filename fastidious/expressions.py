@@ -363,12 +363,10 @@ class Not(ExprMixin):
 
 
 class LabeledExpr(ExprMixin, AtomicExpr):
-    def __init__(self, name, expr, rulename=None, terminal=False):
-        ExprMixin.__init__(self, name, expr, rulename=rulename,
-                           terminal=terminal)
+    def __init__(self, name, expr, terminal=False):
+        ExprMixin.__init__(self, name, expr, terminal=terminal)
         self.name = name
         self.expr = expr
-        self.rulename = rulename
 
     def __call__(self, parser):
         self.debug(parser, "LabeledExpr `{}`".format(self.name))

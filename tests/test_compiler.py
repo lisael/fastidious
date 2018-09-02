@@ -1,8 +1,9 @@
 from unittest import TestCase
 
-from fastidious.parser import parse_grammar
+from fastidious.parser import parse_grammar, Parser
 from fastidious.compilers import check_rulenames, gendot
-from fastidious.compilers.rulename_checker import DuplicateRule, UnknownRule
+from fastidious.compilers.sanitize import (DuplicateRule, UnknownRule,
+                                           LeftRecursion)
 
 
 class TestRulesChecker(TestCase):
@@ -32,6 +33,34 @@ class TestRulesChecker(TestCase):
                 UnknownRule,
                 "Rule `[bc]` referenced in a is not defined"):
             check_rulenames(rules)
+
+
+class LeftRecursionTest(TestCase):
+    def test_direct_left_recursion_detection(self):
+        with self.assertRaises(LeftRecursion):
+            class Broken(Parser):
+                __grammar__ = """
+                a <- a 'b'
+                """
+
+    def test_indirect_left_recursion_detection(self):
+        with self.assertRaises(LeftRecursion):
+            class Broken(Parser):
+                __grammar__ = """
+                Value   <- [0-9.]+ / '(' Expr ')'
+                Product <- Expr (('*' / '/') Expr)*
+                Expr    <- 'a' / Product / Value
+                """
+
+    def test_multiple_indirect_left_recursion_detection(self):
+        with self.assertRaises(LeftRecursion):
+            class Broken(Parser):
+                __grammar__ = """
+                Value   <- [0-9.]+ / '(' Expr ')'
+                Product <- 'b'/ ProductAlias
+                ProductAlias <- Expr (('*' / '/') Expr)*
+                Expr    <- 'a' / Product / Value
+                """
 
 
 class TestGendot(TestCase):
