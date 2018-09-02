@@ -361,7 +361,6 @@ class _FastidiousParserMixin(object):
 
 
 class ParserMeta(type):
-
     def __new__(cls, name, bases, attrs):
         if "__grammar__" in attrs:
             if name in ("FastidiousParser", "FastidiousActionParser"):
@@ -391,10 +390,7 @@ class ParserMeta(type):
         new = super(ParserMeta, cls).__new__(cls, name, bases, attrs)
         if not hasattr(new, "p_compiler"):
             return new
-        compiler = new.p_compiler(new)
-        compiler.process_rules()
-        compiler.process_actions()
-        return compiler.output()
+        return new.p_compiler(new)
 
     @classmethod
     def merge_rules(cls, dest, src):

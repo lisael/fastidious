@@ -23,7 +23,6 @@ else:
     LOWERCASE = string.lowercase
 
 
-
 class _RuleNameToLabels(Visitor):
     def __init__(self, rules):
         self.rulename = None
@@ -68,9 +67,9 @@ class PySetConstants(Visitor):
 
 
 class PyCodeGen(Visitor):
-    def __init__(self, memoize, debug):
-        self.memoize = memoize
+    def __init__(self, parser, debug):
         self.debug = debug
+        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
 
     def _action(self, action):
         from fastidious.compiler.action.pyclass import SimplePyAction
@@ -120,6 +119,7 @@ elif self.pos > head[0]:
         if self.debug:
             code = code.replace("# -- ", "")
         node._py_code = code.strip()
+        return node
 
     def visit_regexexpr(self, node):
         code = """
@@ -175,20 +175,6 @@ result = results_{1}
 
     def visit_ruleexpr(self, node):
         code = "result = self.{}()".format(node.rulename).strip()
-        if self.memoize:
-            pk = hash(node.as_grammar())
-            code = """
-start_pos_{2}= self.pos
-if ({0}, start_pos_{2}) in self._p_memoized:
-    result, self.pos = self._p_memoized[({0}, self.pos)]
-else:
-{1}
-    self._p_memoized[({0}, start_pos_{2})] = result, self.pos
-    """.format(
-                pk,
-                indent(code, 1),
-                node.id,
-            )
         node._py_code = code.strip()
 
     def visit_labeledexpr(self, node):
@@ -393,10 +379,31 @@ if result is self.NoMatch:
         node._py_code = code.strip()
 
 
+class Memoizer(Visitor):
+    def __init__(self, parser):
+        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
+
+    def visit_ruleexpr(self, node):
+        pk = hash(node.as_grammar())
+        code = """
+start_pos_{2}= self.pos
+if ({0}, start_pos_{2}) in self._p_memoized:
+    result, self.pos = self._p_memoized[({0}, self.pos)]
+else:
+{1}
+    self._p_memoized[({0}, start_pos_{2})] = result, self.pos
+    """.format(
+            pk,
+            indent(node._py_code, 1),
+            node.id,
+        )
+        node._py_code = code.strip()
+
+
 class MethodBuilder(Visitor):
-    def __init__(self, parser, memoize):
+    def __init__(self, parser):
         self.parser = parser
-        self.memoize = memoize
+        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
 
     def visit_rule(self, node):
         locals_ = dict()
@@ -410,43 +417,44 @@ class MethodBuilder(Visitor):
             new_method.func_name = node.name  # noqa
             meth = UnboundMethodType(new_method, None, self.parser)  # noqa
         setattr(self.parser, node.name, meth)
+        return node
 
 
 class FastidiousCompiler(object):
     def __init__(self, gen_code=True, memoize=True, debug=False):
-        self.parser = None
         self.gen_code = gen_code
         self.memoize = memoize
         self.debug = debug
 
-    def process_rules(self):
-        rules = self.parser.__rules__
-        check_rulenames(rules)
-        if self.parser.__default__ is None and self.parser.__rules__:
-            self.parser.__default__ = rules[0].name
-        _RuleNameToLabels(rules)
-        _register_expressions(self.parser)
-
-    def process_actions(self):
-        rules = self.parser.__rules__
-        SimplePyAction.update_rules(self.parser, rules)
-
-    def output(self):
-        if self.gen_code:
-            PySetConstants(self.parser)
-            code_gen = PyCodeGen(self.memoize, self.debug)
-            builder = MethodBuilder(self.parser, self.memoize)
-            for rule in self.parser.__rules__:
-                code_gen.visit(rule)
-                builder.visit(rule)
-        else:
-            for rule in self.parser.__rules__:
-                rule._attach_to(self.parser)
-        return self.parser
-
     def __call__(self, parser):
-        self.parser = parser
-        return self
+        rules = parser.__rules__
+        # sanity check. Any compiler should
+        check_rulenames(rules)
 
+        # set the default rule
+        if parser.__default__ is None and rules:
+            parser.__default__ = rules[0].name
 
+        # the captures must know their parent rule name
+        _RuleNameToLabels(rules)
 
+        # for error reporting, register all expressions on the parser
+        _register_expressions(parser)
+
+        # parse the actions
+        SimplePyAction.update_rules(parser)
+
+        # add the methods to the class
+        if self.gen_code:
+            # add constants to the class (pre-compile regexes, ...)
+            PySetConstants(parser)
+            # generate the python code
+            PyCodeGen(parser, self.debug)
+            if self.memoize:
+                Memoizer(parser)
+            # add the methods
+            MethodBuilder(parser)
+        else:
+            for rule in parser.__rules__:
+                rule._attach_to(parser)
+        return parser

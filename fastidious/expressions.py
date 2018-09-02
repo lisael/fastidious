@@ -171,21 +171,6 @@ class AnyCharExpr(ExprMixin, AtomicExpr):
     def as_grammar(self, atomic=False):
         return "."
 
-    def as_code(self, memoize=False, globals_=None):
-        code = """
-# .
-self.p_save()
-n = self.p_next()
-if n is not None:
-    self.p_discard()
-    result = n
-else:
-    self.p_restore()
-{}
-    result = self.NoMatch
-        """.format(self.report_error(1))
-        return code.strip()
-
 
 class LiteralExpr(ExprMixin, AtomicExpr):
     def __init__(self, lit, ignore=False, terminal=False):
@@ -309,7 +294,7 @@ class RuleExpr(ExprMixin, AtomicExpr):
         self.debug(parser, "RuleExpr `{}`".format(self.rulename))
         rule_method = getattr(parser, self.rulename, None)
         if rule_method is None:
-            parser.parse_error("Rule `%s` not found" % self.rulename)
+            parser.p_parse_error("Rule `%s` not found" % self.rulename)
         return rule_method()
 
     def as_grammar(self, atomic=False):
@@ -462,20 +447,6 @@ class Rule(ExprMixin):
         if not self.action and hasattr(parser, "on_{}".format(self.name)):
             self.action = "on_{}".format(self.name)
         return m
-
-    def _action(self):
-        from fastidious.compiler.action.pyclass import SimplePyAction
-        if self.action is not None:
-            if isinstance(self.action, (six.string_types)):
-                if self.action.startswith("@"):
-                    return "result = args['{}']".format(self.action[1:])
-                if self.action.strip() != "":
-                    return "result = self.{}(result, **args)".format(
-                        self.action
-                    )
-            if isinstance(self.action, SimplePyAction):
-                return self.action.as_code()
-        return "pass"
 
     @property
     def expected(self):

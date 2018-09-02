@@ -12,11 +12,11 @@ class ParserMock(ParserMixin):
 
 
 class ExprTestMixin(object):
+    NoMatch = ParserMixin.NoMatch
     def expect(self, args, input, res):
         # test the expression class __call__ method
         l = self.ExprKlass(*args)
         p = ParserMock(input)
-        self.NoMatch = p.NoMatch
         r = l(p)
         self.assertEquals(r, res)
         if isinstance(res, six.string_types):
@@ -41,6 +41,7 @@ class LiteralExprTests(TestCase, ExprTestMixin):
 
     def test_literal(self):
         self.expect(("a",), "ab", "a")
+        self.expect(("",), "ab", "")
         self.expect(("b",), "Bb", self.NoMatch)
         self.expect(("\\",), '\\rest', '\\')
         self.expect(("a", True), "ab", "a")
@@ -55,6 +56,7 @@ class RegexExprTest(TestCase, ExprTestMixin):
     def test_regex(self):
         self.expect(("a*",), "aab", "aa")
         self.expect(("a*", "i"), "Aabc", "Aa")
+        self.expect(("a+",), "b", self.NoMatch)
 
 
 class CharRangeExprTest(TestCase, ExprTestMixin):
@@ -76,6 +78,13 @@ class SeqExprTest(TestCase, ExprTestMixin):
                 AnyCharExpr(),
                 LiteralExpr("bb"),
             ), "aa bb", ["aa", " ", "bb"]
+        )
+        self.expect(
+            (
+                LiteralExpr("aa"),
+                AnyCharExpr(),
+                LiteralExpr("bb"),
+            ), "bb", self.NoMatch
         )
 
 
@@ -124,6 +133,7 @@ class ChoiceExprTest(TestCase, ExprTestMixin):
             LiteralExpr("bb"),
         )
         self.expect(choices, "aa cc", "aa")
+        self.expect(choices, "cc aa", self.NoMatch)
 
 
 class AnyCharExprTest(TestCase, ExprTestMixin):
@@ -137,34 +147,18 @@ class AnyCharExprTest(TestCase, ExprTestMixin):
 class MaybeExprTest(TestCase, ExprTestMixin):
     ExprKlass = MaybeExpr
 
+    def test_maybe(self):
+        self.expect((LiteralExpr("aa"),), "aa bb", "aa")
+        self.expect((LiteralExpr("aa"),), "bb aa", "")
+
 
 class NotTest(TestCase, ExprTestMixin):
     ExprKlass = Not
 
+    def test_not(self):
+        self.expect((LiteralExpr("aa"),), "bb aa", "")
+        self.expect((LiteralExpr("aa"),), "aa bb", self.NoMatch)
+
 
 class LookAheadTest(TestCase, ExprTestMixin):
     ExprKlass = LookAhead
-
-
-class TestRule(TestCase):
-    def test_method(self):
-        return
-        class TestRuleParser(ParserMixin):
-            def on_rulename(self, content, argname):
-                return content, argname
-
-        rule = Rule(
-            "rulename",
-            SeqExpr(
-                LabeledExpr(
-                    "argname",
-                    LiteralExpr("hello"),
-                    "rulename",
-                ),
-                LiteralExpr(" world")
-            ), "on_rulename"
-        )
-        pm = TestRuleParser("hello world")
-        rule.as_method(pm)
-        res = pm.rulename()
-        self.assertEquals(res, (['hello', ' world'], 'hello'))

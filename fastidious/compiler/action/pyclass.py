@@ -45,10 +45,11 @@ class SimpleAction(Action):
                     return
 
     @classmethod
-    def update_rules(cls, parser_class, rules):
+    def update_rules(cls, parser_class):
         v = cls.Visitor(parser_class)
-        for r in rules:
+        for r in parser_class.__rules__:
             v.visit(r)
+        return parser_class.__rules__
 
 
 class _SimpleArgAction(SimpleAction):
@@ -77,11 +78,12 @@ class SimplePyAction(Action):
                 node.action = _SimplePyMethAction(node.action.meth)
 
     @classmethod
-    def update_rules(cls, parser_class, rules):
-        SimpleAction.update_rules(parser_class, rules)
+    def update_rules(cls, parser_class):
+        SimpleAction.update_rules(parser_class)
         v = cls.Visitor()
-        for r in rules:
+        for r in parser_class.__rules__:
             v.visit(r)
+        return parser_class.__rules__
 
 
 class _SimplePyArgAction(_SimpleArgAction, SimplePyAction):
