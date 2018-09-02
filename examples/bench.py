@@ -5,7 +5,6 @@ from timeit import repeat
 from fastidious.parser import FastidiousParser, BaseParser, Parser
 from fastidious.parser_base import FastidiousCompiler
 from fastidious.bootstrap import _FastidiousParserBootstraper
-from fastidious import Parser
 
 grammar = '\n'.join(
     [l.strip() for l in FastidiousParser.__grammar__.splitlines()])

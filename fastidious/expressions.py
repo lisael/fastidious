@@ -4,9 +4,9 @@ import six
 
 
 try:
-    from types import UnboundMethodType, MethodType
+    from types import UnboundMethodType
 except ImportError:
-    from types import MethodType, FunctionType
+    from types import FunctionType
 
 
 class ExprMixin(object):

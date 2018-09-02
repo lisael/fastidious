@@ -13,6 +13,7 @@ class ParserMock(ParserMixin):
 
 class ExprTestMixin(object):
     NoMatch = ParserMixin.NoMatch
+
     def expect(self, args, input, res):
         # test the expression class __call__ method
         l = self.ExprKlass(*args)
