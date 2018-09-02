@@ -3,10 +3,8 @@ import re
 import six
 
 
-try:
+if six.PY2:
     from types import UnboundMethodType
-except ImportError:
-    from types import FunctionType
 
 
 class ExprMixin(object):
@@ -40,33 +38,18 @@ class ExprMixin(object):
             ExprMixin.last_id += 1
         return self._id
 
-    def _children(self):
+    def get_children(self):
         if hasattr(self, "expr"):
             return [self.expr]
         if hasattr(self, "exprs"):
             return self.exprs
         return []
 
-    def report_error(self, indent=0):
-        if not self.report_errors:
-            code = "pass"
-        else:
-            code = """
-if self._p_error_stack:
-    head = self._p_error_stack[0]
-else:
-    head = (0, 0)
-if self.pos <= head[0]:
-    self._p_error_stack.append((self.pos, {0}))
-elif self.pos > head[0]:
-    self._p_error_stack = [(self.pos, {0})]
-# print self._p_error_stack
-        """.format(self.id).strip()
-        return self._indent(code, indent)
-
-    def _indent(self, code, space):
-        ind = " " * space * 4
-        return ind + ("\n" + ind).join([l for l in code.splitlines()])
+    def set_children(self, children):
+        if hasattr(self, "expr"):
+            self.expr = children[0]
+        if hasattr(self, "exprs"):
+            self.exprs = children
 
 
 class AtomicExpr(object):
@@ -440,7 +423,7 @@ class Rule(ExprMixin):
 
     def _attach_to(self, parser):
         if six.PY3:
-            m = FunctionType(self, globals(), self.name)
+            m = self
         else:
             m = UnboundMethodType(self, None, parser)
         setattr(parser, self.name, m)

@@ -7,8 +7,8 @@ import string
 
 import six
 
-from fastidious.expressions import CharRangeExpr, AnyCharExpr
-from fastidious.compiler.astutils import Visitor
+from fastidious.expressions import CharRangeExpr, AnyCharExpr, ExprMixin
+from fastidious.compiler.astutils import Visitor, Mutator
 from fastidious.compilers import check_rulenames
 from fastidious.compiler.action.pyclass import SimplePyAction
 from fastidious.compiler.pyutils import indent
@@ -67,16 +67,11 @@ class PySetConstants(Visitor):
 
 
 class PyCodeGen(Visitor):
-    def __init__(self, parser, debug):
+    def __init__(self, debug):
         self.debug = debug
-        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
 
-    def _action(self, action):
-        from fastidious.compiler.action.pyclass import SimplePyAction
-        if action is not None:
-            if isinstance(action, SimplePyAction):
-                return action.as_code()
-        return "pass"
+    def __call__(self, parser):
+        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
 
     def report_error(self, id):
         return """
@@ -91,14 +86,20 @@ elif self.pos > head[0]:
 # print self._p_error_stack
         """.format(id).strip()
 
+    def _action(self, action):
+        from fastidious.compiler.action.pyclass import SimplePyAction
+        if action is not None:
+            if isinstance(action, SimplePyAction):
+                return action.as_code()
+        return "pass"
+
     def visit_rule(self, node):
         self.visit(node.expr)
         code = """    '''{3}'''
     # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
-    self.args_stack.setdefault("{0}",[]).append(dict())
+    args = dict()
 {1}
-    args = self.args_stack["{0}"].pop()
     # -- self._debug_indent -= 1
     if result is not self.NoMatch:
         {2}
@@ -120,6 +121,10 @@ elif self.pos > head[0]:
             code = code.replace("# -- ", "")
         node._py_code = code.strip()
         return node
+
+    def visit_ruleexpr(self, node):
+        code = "result = self.{}()".format(node.rulename).strip()
+        node._py_code = code.strip()
 
     def visit_regexexpr(self, node):
         code = """
@@ -173,20 +178,15 @@ result = results_{1}
         )
         node._py_code = code.strip()
 
-    def visit_ruleexpr(self, node):
-        code = "result = self.{}()".format(node.rulename).strip()
-        node._py_code = code.strip()
-
     def visit_labeledexpr(self, node):
         self.visit(node.expr)
         code = """
 # {}
 {}
-self.args_stack[{}][-1][{}] = result
+args[{}] = result
         """.format(
             node.as_grammar(),
             node.expr._py_code,
-            repr(node.rulename),
             repr(node.name)
         )
         node._py_code = code.strip()
@@ -317,6 +317,10 @@ while 42:
         node._py_code = code.strip()
 
     def visit_choiceexpr(self, node):
+        if not node.exprs:
+            node._py_code = "result = self.NoMatch"
+            return
+
         def expressions():
             exprs = []
             for i, expr in enumerate(node.exprs):
@@ -332,7 +336,6 @@ if result is self.NoMatch:
         code = """
 # {1}
 self.p_save()
-result = self.NoMatch
 {0}
 if result is self.NoMatch:
     self.p_restore()
@@ -379,12 +382,15 @@ if result is self.NoMatch:
         node._py_code = code.strip()
 
 
-class Memoizer(Visitor):
-    def __init__(self, parser):
-        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
+class MemoizedExpr(ExprMixin):
+    def __init__(self, expr, debug):
+        self.expr = expr
+        self.debug = debug
 
-    def visit_ruleexpr(self, node):
-        pk = hash(node.as_grammar())
+    @property
+    def _py_code(self):
+        PyCodeGen(self.debug).visit(self.expr)
+        pk = hash(self.expr.as_grammar())
         code = """
 start_pos_{2}= self.pos
 if ({0}, start_pos_{2}) in self._p_memoized:
@@ -394,10 +400,25 @@ else:
     self._p_memoized[({0}, start_pos_{2})] = result, self.pos
     """.format(
             pk,
-            indent(node._py_code, 1),
-            node.id,
+            indent(self.expr._py_code, 1),
+            self.expr.id,
         )
-        node._py_code = code.strip()
+        return code.strip()
+
+    def as_grammar(self, *args, **kwargs):
+        return self.expr.as_grammar(*args, **kwargs)
+
+
+class Memoizer(Mutator):
+    def __init__(self, debug):
+        self.debug = debug
+
+    def __call__(self, parser):
+        parser.__rules__ = [self.visit(r) for r in parser.__rules__]
+
+    def visit_ruleexpr(self, node):
+        self.generic_visit(node)
+        return MemoizedExpr(node, self.debug)
 
 
 class MethodBuilder(Visitor):
@@ -449,9 +470,9 @@ class FastidiousCompiler(object):
             # add constants to the class (pre-compile regexes, ...)
             PySetConstants(parser)
             # generate the python code
-            PyCodeGen(parser, self.debug)
             if self.memoize:
-                Memoizer(parser)
+                Memoizer(self.debug)(parser)
+            PyCodeGen(self.debug)(parser)
             # add the methods
             MethodBuilder(parser)
         else:

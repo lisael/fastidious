@@ -16,6 +16,15 @@ class Visitor(VisitorBase):
         return node
 
     def generic_visit(self, node):
-        for child in node._children():
+        for child in node.get_children():
             self.visit(child)
+        return self.generic_action(node)
+
+
+class Mutator(Visitor):
+    def generic_action(self, node):
+        return node
+
+    def generic_visit(self, node):
+        node.set_children([self.visit(c) for c in node.get_children()])
         return self.generic_action(node)

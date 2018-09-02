@@ -1,9 +1,10 @@
 #! /usr/bin/env python
 import gc
+import sys
 from timeit import repeat
 
 from fastidious.parser import FastidiousParser, BaseParser, Parser
-from fastidious.parser_base import FastidiousCompiler
+from fastidious.fastidious_compiler import FastidiousCompiler
 from fastidious.bootstrap import _FastidiousParserBootstraper
 
 grammar = '\n'.join(
@@ -12,17 +13,17 @@ grammar = '\n'.join(
 kb = len(grammar) / 1024.0
 
 
-class NoCodeGen(BaseParser):
-    p_compiler = FastidiousCompiler(gen_code=False)
-    __grammar__ = grammar
-
-
 class Default(Parser):
     __grammar__ = grammar
 
 
 class NotMemoized(BaseParser):
     p_compiler = FastidiousCompiler(memoize=False)
+    __grammar__ = grammar
+
+
+class NoCodeGen(BaseParser):
+    p_compiler = FastidiousCompiler(gen_code=False)
     __grammar__ = grammar
 
 
@@ -52,6 +53,13 @@ class NotJSONParser(Parser):
         _ <- ~"\\s*"
 
     """
+
+
+if "--json-code" in sys.argv:
+    for r in NotJSONParser.__rules__:
+        print(r._py_code)
+        print("")
+    sys.exit(0)
 
 
 class NotJSONNoCodeGenParser(BaseParser):
@@ -123,6 +131,8 @@ def benchit(klass, source, entry_point, ref=None):
 
 if __name__ == "__main__":
     ref = benchit(NotJSONParser, json, "value")
+    if "--json-only" in sys.argv:
+        sys.exit(0)
     benchit(NotJSONNoCodeGenParser, json, "value", ref)
     benchit(NotJSONNoMemoizedParser, json, "value", ref)
     ref = benchit(FastidiousParser, grammar, "grammar", "(base)")
