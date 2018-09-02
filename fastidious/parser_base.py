@@ -289,7 +289,7 @@ class _FastidiousParserMixin(object):
             try:
                 label[0] = expr.rulename
             except AttributeError:
-                self.parse_error(
+                self.p_parse_error(
                     "Label can be omitted only on rule reference"
                 )
         return LabeledExpr(label[0], expr)
@@ -342,7 +342,7 @@ class _FastidiousParserMixin(object):
             assert starti <= endi
             return charset[starti:endi + 1]
         except Exception:
-            self.parse_error(
+            self.p_parse_error(
                 "Invalid char range : `{}`".format(self.p_flatten(value)))
 
     _escaped = {
