@@ -10,7 +10,7 @@ import six
 
 from fastidious.expressions import CharRangeExpr, AnyCharExpr, ExprMixin
 from fastidious.compiler.astutils import Visitor, Mutator
-from fastidious.compilers import check_rulenames
+from fastidious.compilers import check_rulenames, check_left_recursion
 from fastidious.compiler.action.pyclass import SimplePyAction
 from fastidious.compiler.pyutils import indent
 
@@ -24,7 +24,7 @@ else:
     LOWERCASE = string.lowercase
 
 
-class _RuleNameToLabels(Visitor):
+class _RuleNameToCaptures(Visitor):
     def __init__(self, rules):
         self.rulename = None
         for r in rules:
@@ -35,7 +35,7 @@ class _RuleNameToLabels(Visitor):
         self.visit(node.expr)
 
     def visit_labeledexpr(self, node):
-        if node.rulename is None:
+        if not hasattr(node, "rulename"):
             node.rulename = self.rulename
         self.visit(node.expr)
 
@@ -474,13 +474,11 @@ class FastidiousCompiler(object):
         rules = parser.__rules__
         # sanity check. Any compiler should
         check_rulenames(rules)
+        check_left_recursion(rules)
 
         # set the default rule
         if parser.__default__ is None and rules:
             parser.__default__ = rules[0].name
-
-        # the captures must know their parent rule name
-        _RuleNameToLabels(rules)
 
         # for error reporting, register all expressions on the parser
         _register_expressions(parser)
@@ -500,6 +498,8 @@ class FastidiousCompiler(object):
             MethodBuilder(parser)
         else:
             for rule in parser.__rules__:
+                # the captures must know their parent rule name
+                _RuleNameToCaptures(rules)
                 rule._attach_to(parser)
         return parser
 
