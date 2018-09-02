@@ -4,6 +4,8 @@ from fastidious.expressions import (Not, ZeroOrMoreExpr, LabeledExpr, SeqExpr,
                                     ChoiceExpr, MaybeExpr, OneOrMoreExpr)
 from fastidious.compiler.astutils import Visitor
 
+from fastidious.compiler.action.base import Action
+
 
 class ParserGraphVisitor(Visitor):
     def __init__(self):
@@ -92,7 +94,10 @@ class ParserGraphVisitor(Visitor):
         self.content.write(s)
         self.visit(node.expr)
         self.link(node, node.expr)
-        label = node.action if node.action else " "
+        if isinstance(node.action, Action):
+            label = node.action.__string__()
+        else:
+            label = node.action if node.action else " "
         dummy = object()
         s = ' %s [label="%s", shape="box"]\n' % (self.node_name(dummy), label)
         self.content.write(s)

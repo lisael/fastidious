@@ -9,6 +9,8 @@ from .base import Action, ActionError
 
 
 class SimpleAction(Action):
+    def __string__(self):
+        return self.actionstr
 
     class Visitor(Visitor):
         def __init__(self, parser_class):
@@ -30,18 +32,18 @@ class SimpleAction(Action):
                         raise ActionError(
                             "`%s`: label not found in rule `%s`" % (
                                 argname, node.name))
-                    node.action = _SimpleArgAction(argname)
+                    node.action = _SimpleArgAction(argname, actionstr)
                     return
                 meth = getattr(self.parser, actionstr, None)
                 if meth is None:
                     raise ActionError("Unknown method `%s`" % actionstr)
                 node.action = _SimpleMethAction(
-                    getattr(self.parser, actionstr))
+                    getattr(self.parser, actionstr), actionstr)
                 return
             if node.action is None:
                 meth = getattr(self.parser, "on_%s" % node.name, None)
                 if meth is not None:
-                    node.action = _SimpleMethAction(meth)
+                    node.action = _SimpleMethAction(meth, "")
                     return
 
     @classmethod
@@ -53,16 +55,18 @@ class SimpleAction(Action):
 
 
 class _SimpleArgAction(SimpleAction):
-    def __init__(self, argname):
+    def __init__(self, argname, actionstr):
         self.argname = argname
+        self.actionstr = actionstr
 
     def __call__(self, parser, result, **args):
         return args[self.argname]
 
 
 class _SimpleMethAction(SimpleAction):
-    def __init__(self, meth):
+    def __init__(self, meth, actionstr):
         self.meth = meth
+        self.actionstr = actionstr
 
     def __call__(self, parser, result, **args):
         return self.meth(parser, result, **args)
@@ -73,9 +77,11 @@ class SimplePyAction(Action):
     class Visitor(Visitor):
         def visit_rule(self, node):
             if isinstance(node.action, _SimpleArgAction):
-                node.action = _SimplePyArgAction(node.action.argname)
+                node.action = _SimplePyArgAction(node.action.argname,
+                                                 node.action.actionstr)
             if isinstance(node.action, _SimpleMethAction):
-                node.action = _SimplePyMethAction(node.action.meth)
+                node.action = _SimplePyMethAction(node.action.meth,
+                                                  node.action.actionstr)
 
     @classmethod
     def update_rules(cls, parser_class):
