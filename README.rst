@@ -5,9 +5,25 @@ Fastidious
 .. image:: https://travis-ci.org/lisael/fastidious.svg?branch=master
     :target: https://travis-ci.org/lisael/fastidious
 
-A python `parsing expression grammar
-(PEG) <https://en.wikipedia.org/wiki/Parsing_expression_grammar>`_ based parser
-generator.  It is loosely based on https://github.com/PuerkitoBio/pigeon
+Fastidious is a Python `parsing expression grammar
+(PEG) <https://en.wikipedia.org/wiki/Parsing_expression_grammar>`_ parser
+generator.
+
+Fastidious is also a PEG parser compiler. The compiler is used internally to
+generate parsers, but is also exposed to allow the user to create their own
+outputs from the grammar. One could for example generate the code of a parser
+in another language than python.
+
+Fastidious aims to be a PEG parser design framework. Some useful helpers are
+planned:
+
+- complex rule actions
+
+- automatic AST nodes generation
+
+- auto-generated unit test class
+
+- ...
 
 Features
 ========
@@ -112,10 +128,8 @@ debug and tested with fastidious, you may want to ship it in your
 project without keeping the dependency on fastidious itself.
 
 .. code-block:: sh
-        echo "#! /usr/bin/env python" > mycalc.py
-        python -m fastidious examples.calculator.Calculator >> mycalc.py
-        echo "import sys" >> mycalc.py
-        echo "print(Calculator.p_parse(' '.join(sys.argv[1:])))" >> mycalc.py
+
+        python -m fastidious examples.calculator.Calculator -e > mycalc.py
         chmod +x mycalc.py
         mycalc.py 2 + 1
 
@@ -158,6 +172,65 @@ At the moment, there's only URLParser, that provides a rule that match URLs and
 outputs an ``urlparse.ParseResult`` on match.
 
 Please send a pull request if you made an interesting piece of code :)
+
+Bells and whistle
++++++++++++++++++
+
+Fastidious can also generate a nice graphical view of a grammar with graphiz
+
+.. code-block:: sh
+
+           python -m fastidious graph examples.calculator.Calculator | dot -Tpng > doc/images/calculator.png 
+
+.. image:: doc/images/calculator.png
+    :target: https://raw.githubusercontent.com/lisael/fastidious/master/doc/images/calculator.png 
+
+
+Compiler
+++++++++
+
+Fastidious generates an AST of the grammar. Then by successive passes of AST
+transforms, it generate python code that is complied and added to the class
+at runtime.
+
+This design has many advantages:
+
+- It's trivial to implement user preferences and tweaks on the generated code
+
+- It's easy to add features and optimisations. For example, the ratpack optimisation
+  (memeoization) is implemented as a pass in the compiler. It's ~50 LoC of a 
+  simple visitor that adds the memoization code to the generated code.
+
+- The new pass can be toggled in tests to check correctness and to measure
+  the optimisation gains (I can prove that memoized code is 30% faster)
+
+
+The user can force their own compilers on a parser class definition. The 
+compiler code is stil messy, and undocumented though.
+
+Acknowledgments
+===============
+
+- Fastidious grammar used to be loosely based on `Pigeon<https://github.com/PuerkitoBio/pigeon>_`
+
+  - It has diverged a lot since then.
+
+  - However, most of the PEG documentation below is a shameless copy of
+    Pigeon doc
+
+- `Parsimonious<https://github.com/erikrose/parsimonious>_` is another python PEG
+  parser generator.
+
+  - Parsimonious was designed for speed and low memory usage. I guess it's a good
+    reference for Fastidious benchmarks. Fastidious seems faster on small inputs
+    (<100kB). Both parsers slow down as the size of the input grows. Fastidious
+    eventually become slower than Parsimonious
+
+  - Well, it's just stupid benchmarks, never trust them, just try with your own
+    workload.
+    
+  - Anyway, I'm quite upset I didn't find Parsimonious' name first, I'll do my
+    best to be faster, as a revenge :-)
 
 PEG Syntax
 ==========
