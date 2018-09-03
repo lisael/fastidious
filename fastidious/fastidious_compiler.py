@@ -245,8 +245,10 @@ if result is self.NoMatch:
         node._py_code = code.strip()
 
     def visit_literalexpr(self, node):
+
         if node.lit == "":
-            return "result = ''"
+            node._py_code = "result = ''"
+            return
         code = """
 # {2}
 result = self.p_startswith({0}, {1})

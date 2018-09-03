@@ -181,9 +181,10 @@ class LiteralExpr(ExprMixin, AtomicExpr):
         lit = lit.replace("\f", r"\f")
         lit = lit.replace("\r", r"\r")
         lit = lit.replace("\v", r"\v")
+        ignore = self.ignorecase and "i" or ""
         if lit != '"':
-            return '"{}"'.format(lit)
-        return """'"'"""
+            return '"{}"{}'.format(lit, ignore)
+        return """'"'%s""" % ignore
 
 
 class CharRangeExpr(ExprMixin, AtomicExpr):

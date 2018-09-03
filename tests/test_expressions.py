@@ -5,6 +5,7 @@ import six
 
 from fastidious.expressions import *  # noqa
 from fastidious.bootstrap import ParserMixin
+from fastidious import Parser
 
 
 class ParserMock(ParserMixin):
@@ -24,17 +25,16 @@ class ExprTestMixin(object):
             self.assertEquals(input[len(res):], p.p_suffix())
 
         # test the generated code
-        # turn this off at the moment
-        # oldself = self
-        # le = self.ExprKlass(*args)
-        # globs = []
-        # code = le.as_code(globals_=globs)
-        # self = ParserMock(input)
-        # exec("\n".join(globs))
-        # exec(code)
-        # oldself.assertEquals(result, res)
-        # if isinstance(res, six.string_types):
-            # oldself.assertEquals(input[len(res):], self.p_suffix())
+        grammar = "rule <- %s" % l.as_grammar()
+
+        class TestParser(Parser):
+            __grammar__ = grammar
+
+        r = TestParser(input).rule()
+        self.assertEquals(r, res)
+        if isinstance(res, six.string_types):
+            self.assertEquals(input[len(res):], p.p_suffix())
+        return TestParser
 
 
 class LiteralExprTests(TestCase, ExprTestMixin):
