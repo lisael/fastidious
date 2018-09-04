@@ -8,7 +8,7 @@ import inspect
 
 import six
 
-from fastidious.expressions import CharRangeExpr, AnyCharExpr, ExprMixin
+from fastidious.expressions import CharRangeExpr, AnyCharExpr, ExprProxi
 from fastidious.compiler.astutils import Visitor, Mutator
 from fastidious.compilers import check_rulenames, check_left_recursion
 from fastidious.compiler.action.pyclass import SimplePyAction
@@ -393,10 +393,11 @@ if result is self.NoMatch:
         node._py_code = code.strip()
 
 
-class MemoizedExpr(ExprMixin):
+class MemoizedExpr(ExprProxi):
     def __init__(self, expr, debug):
         self.expr = expr
         self.debug = debug
+        self.proxied = expr
 
     @property
     def _py_code(self):

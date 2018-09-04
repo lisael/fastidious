@@ -53,7 +53,7 @@ print(res)
 
 def graph(klass):
     parser = load_parser(klass)
-    dot = gendot(parser.__rules__[::-1])
+    dot = gendot(parser.__rules__)
     return dot
 
 

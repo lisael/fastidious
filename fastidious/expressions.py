@@ -26,10 +26,8 @@ class ExprMixin(object):
 
     def disable_errors(self):
         self.report_errors = False
-        for child in getattr(self, "exprs", []):
-            child.disable_errors()
-        if hasattr(self, "expr"):
-            self.expr.disable_errors()
+        for c in self.get_children():
+            c.disable_errors()
 
     @property
     def id(self):
@@ -50,6 +48,22 @@ class ExprMixin(object):
             self.expr = children[0]
         if hasattr(self, "exprs"):
             self.exprs = children
+
+
+class ExprProxi(ExprMixin):
+    @property
+    def expected(self):
+        return self.proxied.expected
+
+    def debug(self, *args, **kwargs):
+        return self.proxied.debug(*args, **kwargs)
+
+    def disable_errors(self):
+        return self.proxied.disable_errors()
+
+    @property
+    def id(self):
+        self.proxied.id
 
 
 class AtomicExpr(object):

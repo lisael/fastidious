@@ -163,3 +163,7 @@ class NotTest(TestCase, ExprTestMixin):
 
 class LookAheadTest(TestCase, ExprTestMixin):
     ExprKlass = LookAhead
+
+    def test_lookahead(self):
+        self.expect((LiteralExpr("aa"),), "aa bb", "")
+        self.expect((LiteralExpr("aa"),), "bb aa", self.NoMatch)
