@@ -32,6 +32,7 @@ else:
 if not hasattr(__builtins__, "basestring"):
     basestring = str
 
+
 class ParserError(Exception):
     pass
 
