@@ -45,10 +45,11 @@ def generate(klass, executable):
 
     if executable:
         sys.stdout.write("""
-import sys
-res = Calculator.p_parse(" ".join(sys.argv[1:]))
-print(res)
-""")
+if __name__ == '__main__':
+    import sys
+    res = %s.p_parse(" ".join(sys.argv[1:]))
+    print(res)
+""" % klass.rsplit(".", 1)[-1])
 
 
 def graph(klass):
