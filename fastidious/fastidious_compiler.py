@@ -530,7 +530,11 @@ More info at https://github.com/lisael/fastidious
 '''.format(cmd))
         out.write("""
 import re
-import six
+
+try :
+    basestring
+except :
+    basestring = str
 
 """)
 

@@ -29,6 +29,10 @@ else:
     UPPERCASE = string.uppercase
     LOWERCASE = string.lowercase
 
+try :
+    basestring
+except :
+    basestring = str
 
 class ParserError(Exception):
     pass
@@ -188,7 +192,7 @@ class ParserMixin(object):
         'abc'
 
         """
-        if isinstance(obj, six.string_types):
+        if isinstance(obj, basestring):
             return obj
         result = ""
         for i in obj:
