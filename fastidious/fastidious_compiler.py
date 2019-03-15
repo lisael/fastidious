@@ -531,9 +531,7 @@ More info at https://github.com/lisael/fastidious
         out.write("""
 import re
 
-try :
-    basestring
-except :
+if not hasattr(__builtins__, 'basestring'):
     basestring = str
 
 """)

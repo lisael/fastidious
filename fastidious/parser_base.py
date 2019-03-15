@@ -29,9 +29,7 @@ else:
     UPPERCASE = string.uppercase
     LOWERCASE = string.lowercase
 
-try :
-    basestring
-except :
+if not hasattr(__builtins__, "basestring"):
     basestring = str
 
 class ParserError(Exception):
