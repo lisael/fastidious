@@ -563,7 +563,7 @@ class _Expr:
         out.write(body)
 
         # print _p_py_constants
-        out.write("    _p_py_constants = %r\n" % _repr(parser._p_py_constants))
+        out.write("    _p_py_constants = %s\n" % _repr(parser._p_py_constants))
 
         # print parsr methods and attributes
         from fastidious.parser_base import ParserMixin
