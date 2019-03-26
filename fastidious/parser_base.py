@@ -29,6 +29,9 @@ else:
     UPPERCASE = string.uppercase
     LOWERCASE = string.lowercase
 
+if not hasattr(__builtins__, "basestring"):
+    basestring = str
+
 
 class ParserError(Exception):
     pass
@@ -188,7 +191,7 @@ class ParserMixin(object):
         'abc'
 
         """
-        if isinstance(obj, six.string_types):
+        if isinstance(obj, basestring):
             return obj
         result = ""
         for i in obj:

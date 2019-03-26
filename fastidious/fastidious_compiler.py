@@ -466,6 +466,21 @@ class MethodWriter(Visitor):
         self.output.write("\n\n")
 
 
+_SRE_Pattern = type(re.compile("."))
+
+
+def _repr(obj):
+    # actually only needed for Py2 that does not produce
+    # evaluable repr from regexps
+    if isinstance(obj, dict):
+        return "{%s}" % (", ".join("%s: %s" % (_repr(k), _repr(v))
+                                   for k, v in obj.items()))
+    elif isinstance(obj, _SRE_Pattern):
+        return "re.compile(%r, %s)" % (obj.pattern, obj.flags)
+    else:
+        return repr(obj)
+
+
 class FastidiousCompiler(object):
     def __init__(self, gen_code=True, memoize=True, debug=False):
         self.gen_code = gen_code
@@ -530,7 +545,9 @@ More info at https://github.com/lisael/fastidious
 '''.format(cmd))
         out.write("""
 import re
-import six
+
+if not hasattr(__builtins__, 'basestring'):
+    basestring = str
 
 """)
 
@@ -548,6 +565,9 @@ class _Expr:
         out.write("    __default__ = '%s'\n" % parser.__default__)
         out.write("    class ParserError(Exception):\n        pass\n\n")
         out.write(body)
+
+        # print _p_py_constants
+        out.write("    _p_py_constants = %s\n" % _repr(parser._p_py_constants))
 
         # print parsr methods and attributes
         from fastidious.parser_base import ParserMixin
