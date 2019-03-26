@@ -465,17 +465,21 @@ class MethodWriter(Visitor):
         self.output.write(indent(node._py_code, self.indent))
         self.output.write("\n\n")
 
+
 _SRE_Pattern = type(re.compile("."))
 
-def _repr (obj) :
-    # actually only needed for Py2 that does not produce evaluable repr from regexps
-    if isinstance(obj, dict) :
+
+def _repr(obj):
+    # actually only needed for Py2 that does not produce
+    # evaluable repr from regexps
+    if isinstance(obj, dict):
         return "{%s}" % (", ".join("%s: %s" % (_repr(k), _repr(v))
                                    for k, v in obj.items()))
-    elif isinstance(obj, _SRE_Pattern) :
+    elif isinstance(obj, _SRE_Pattern):
         return "re.compile(%r, %s)" % (obj.pattern, obj.flags)
-    else :
+    else:
         return repr(obj)
+
 
 class FastidiousCompiler(object):
     def __init__(self, gen_code=True, memoize=True, debug=False):
