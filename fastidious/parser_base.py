@@ -172,7 +172,7 @@ class ParserMixin(object):
             return result
         return False
 
-    def p_flatten(self, obj, **kwargs):
+    def p_flatten(self, value, **kwargs):
         """ Flatten a list of lists of lists... of strings into a string
 
         This is usually used as the action for sequence expressions:
@@ -188,11 +188,20 @@ class ParserMixin(object):
         'abc'
 
         """
-        if isinstance(obj, six.string_types):
-            return obj
+        if isinstance(value, six.string_types):
+            return value
         result = ""
-        for i in obj:
+        for i in value:
             result += self.p_flatten(i)
+        return result
+
+    def p_flatten_list(self, value, **kwargs):
+        result = []
+        for i in value:
+            if isinstance(i, list):
+                result += self.p_flatten_list(i)
+            else:
+                result.append(i)
         return result
 
     @classmethod

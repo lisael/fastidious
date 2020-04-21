@@ -2,7 +2,7 @@ import six
 
 from fastidious.expressions import (Not, ZeroOrMoreExpr, LabeledExpr, SeqExpr,
                                     ChoiceExpr, MaybeExpr, OneOrMoreExpr,
-                                    ExprProxi, RuleExpr, Rule)
+                                    ExprProxi)
 from fastidious.compiler.astutils import Visitor
 
 from fastidious.compiler.action.base import Action
@@ -10,6 +10,7 @@ from fastidious.compiler.action.base import Action
 
 class LinkError(Exception):
     pass
+
 
 class ParserGraphVisitor(Visitor):
     def __init__(self, vertical=False):
