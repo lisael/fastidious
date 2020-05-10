@@ -57,6 +57,8 @@ class RegexExprTest(TestCase, ExprTestMixin):
     def test_regex(self):
         self.expect(("a*",), "aab", "aa")
         self.expect(("a*", "i"), "Aabc", "Aa")
+        self.expect(("\t",), "\ta", "\t")
+        self.expect(("\\" +"u0042",), "Ba", "B")
         self.expect(("a+",), "b", self.NoMatch)
 
 

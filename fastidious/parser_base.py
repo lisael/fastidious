@@ -35,7 +35,7 @@ class ParserError(Exception):
 
 
 class ParserMixin(object):
-    __memoize__ = True
+    __memoize__ = False
     # __debug___ = True
     __debug___ = False
     __code_gen__ = True
@@ -54,6 +54,14 @@ class ParserMixin(object):
         self._p_memoized = {}
 
         self._p_error_stack = [(0, 0)]
+
+    @property
+    def p_pos(self):
+        return self.pos
+
+    @property
+    def p_start(self):
+        return self.start
 
     def p_nomatch(self, id):
         head = self._p_error_stack[0]
@@ -354,6 +362,9 @@ class _FastidiousParserMixin(object):
             self.p_parse_error(
                 "Invalid char range : `{}`".format(self.p_flatten(value)))
 
+    def on_hex_code_point(self, _, hex):
+        return bytearray.fromhex(self.p_flatten(hex)).decode("utf-8")
+
     _escaped = {
         "a": "\a",
         "b": "\b",
@@ -365,7 +376,7 @@ class _FastidiousParserMixin(object):
         "\\": "\\",
     }
 
-    def on_common_escape(self, value):
+    def on_single_char_escape(self, value):
         return self._escaped[self.p_flatten(value)]
 
 

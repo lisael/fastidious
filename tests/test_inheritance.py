@@ -11,10 +11,15 @@ class Parent(Parser):
     """
 
 
-class Child(Parent):
+class Mixin(Parser):
+    __grammar__ = r"""
+    some_bs <- 'b'+
+    """
+
+
+class Child(Parent, Mixin):
     __grammar__ = r"""
     letters <- some_as some_bs some_cs EOF {p_flatten}
-    some_bs <- 'b'+
     some_cs <- 'c'*
     EOF <- !.
     """

@@ -70,32 +70,6 @@ class AtomicExpr(object):
     """Marker class for atomic expressions"""
 
 
-class RegexExpr(ExprMixin):
-    def __init__(self, regexp, flags=None):
-        ExprMixin.__init__(self, regexp, flags=flags)
-        self.lit = regexp
-        self.flags = flags or None
-        self.re = re.compile(self._full_regexp())
-
-    def __call__(self, parser):
-        self.debug(parser, "RegexExpr `{}`".format(self.lit))
-        m = self.re.match(parser.p_suffix())
-        if m is None:
-            parser.p_nomatch(self.id)
-            return parser.NoMatch
-        end = m.end()
-        result = parser.p_suffix(end)
-        parser.pos += end
-        return result
-
-    def as_grammar(self, atomic=False):
-        return "~{}{}".format(repr(self.lit), self.flags or "")
-
-    def _full_regexp(self):
-        if self.flags is not None:
-            return "(?{}){}".format(self.flags, self.lit)
-        return self.lit
-
 
 class SeqExpr(ExprMixin):
     def __init__(self, *exprs, **kwargs):
@@ -199,6 +173,33 @@ class LiteralExpr(ExprMixin, AtomicExpr):
         if lit != '"':
             return '"{}"{}'.format(lit, ignore)
         return """'"'%s""" % ignore
+
+
+class RegexExpr(ExprMixin, AtomicExpr):
+    def __init__(self, regexp, flags=None):
+        ExprMixin.__init__(self, regexp, flags=flags)
+        self.lit = regexp
+        self.flags = flags or None
+        self.re = re.compile(self._full_regexp())
+
+    def __call__(self, parser):
+        self.debug(parser, "RegexExpr `{}`".format(self.lit))
+        m = self.re.match(parser.p_suffix())
+        if m is None:
+            parser.p_nomatch(self.id)
+            return parser.NoMatch
+        end = m.end()
+        result = parser.p_suffix(end)
+        parser.pos += end
+        return result
+
+    def as_grammar(self, atomic=False):
+        return "~{}{}".format(repr(self.lit), self.flags or "")
+
+    def _full_regexp(self):
+        if self.flags is not None:
+            return "(?{}){}".format(self.flags, self.lit)
+        return self.lit
 
 
 class CharRangeExpr(ExprMixin, AtomicExpr):

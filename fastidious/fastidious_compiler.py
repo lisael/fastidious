@@ -96,7 +96,7 @@ elif self.pos > head[0]:
 
     def visit_rule(self, node):
         self.visit(node.expr)
-        code = """    '''{3}'''
+        code = """    {3}
     # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
     args = dict()
@@ -112,7 +112,7 @@ elif self.pos > head[0]:
         """.format(node.name,
                    indent(node.expr._py_code, 1),
                    self._action(node.action),
-                   node.as_grammar().replace("'", "\\'"),
+                   repr(node.as_grammar()),
                    indent(self.report_error(node.id), 2),
                    node.id,
                    )

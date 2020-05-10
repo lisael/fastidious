@@ -316,7 +316,6 @@ class _FastidiousParserBootstraper(
         Rule(
             "common_escape",
             RuleExpr("single_char_escape"),
-            "on_common_escape"
         ),
 
         # single_char_escape <- 'a' / 'b' / 'n' / 'f' / 'r' / 't' / 'v' / '\\'
@@ -332,6 +331,7 @@ class _FastidiousParserBootstraper(
                 LiteralExpr("v"),
                 LiteralExpr("\\"),
             ),
+            "on_single_char_escape"
         ),
 
         # any_char_expr <- "."
