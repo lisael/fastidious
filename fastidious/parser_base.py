@@ -129,14 +129,29 @@ class ParserMixin(object):
             return self.pos
         return self.pos - nlidx
 
+    def p_context(self, lines=2):
+        "return the input stating at `lines` before current position"
+        p = self.pos
+        needed = lines
+        while p > 0 and lines > 0:
+            char = self.input[p]
+            if char == "\n":
+                lines -= 1
+            if lines > 0:
+                p -= 1
+        result = self.input[p:].splitlines()
+        result = result[0:needed-lines]
+        return "\n".join(result)
+
     def p_pretty_pos(self):
         "Print current line and a pretty cursor below. Used in error messages"
-        col = self.p_current_col
+        col = self.p_current_col - 1
         suffix = self.input[self.pos - col:]
+        context = self.p_context()
         end = suffix.find("\n")
         if end != -1:
             suffix = suffix[:end]
-        return "%s\n%s" % (suffix, "-" * col + "^")
+        return "%s\n%s\n%s" % (context, suffix, "-" * col + "^")
 
     def p_parse_error(self, message):
         raise ParserError(
@@ -307,7 +322,7 @@ class _FastidiousParserMixin(object):
                 label[0] = expr.rulename
             except AttributeError:
                 self.p_parse_error(
-                    "Label can be omitted only on rule reference"
+                    "%s : Label can be omitted only on rule reference" % expr.as_grammar()
                 )
         return LabeledExpr(label[0], expr)
 
