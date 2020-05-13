@@ -24,7 +24,8 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
     __grammar__ = r"""
         grammar <- __ rules:( rule __ )+
 
-        rule "RULE" <- terminal:"`"? name:identifier_name __ ( :alias _ )? "<-" __ expr:expression code:( __ code_block )? EOS
+        rule "RULE" <- terminal:"`"? name:identifier_name __ ( :alias _ )? arrow __ expr:expression code:( __ code_block )? EOS
+        arrow "ARROW" <- "<-" / "←"
 
         code_block "CODE_BLOCK" <- "{" code:code "}" {@code}
         code <- ( ( ![{}] source_char )+ / ( "{" code "}" ) )* {p_flatten}
@@ -48,7 +49,7 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
 
         any_char_expr <- "."
 
-        rule_expr <- name:identifier_name !( __ (string_literal __ )? "<-" )
+        rule_expr <- name:identifier_name !( __ (string_literal __ )? arrow )
 
         seq_expr <- first:labeled_expr rest:( __ labeled_expr )*
 
