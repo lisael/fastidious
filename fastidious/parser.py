@@ -67,8 +67,8 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
 
         common_escape <- single_char_escape / code_point
         code_point <- hex_code_point
-        hex_code_point <- "x" hex:(hex_char hex_char)
-        hex_char <- [0-9a-f]
+        hex_code_point <- "x" hex:(hex_char hex_char) / "u" hex:(hex_char hex_char hex_char hex_char) / "U" hex:(hex_char hex_char hex_char hex_char hex_char hex_char hex_char hex_char)
+        hex_char <- [0-9a-fA-F]
         single_char_escape <- "a" / "b" / "n" / "f" / "r" / "t" / "v" / "\\"
 
         comment <- "#" ( !EOL source_char )*
