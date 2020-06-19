@@ -6,22 +6,16 @@ import re
 import string
 import inspect
 
-import six
-
 from fastidious.expressions import CharRangeExpr, AnyCharExpr, ExprProxi
 from fastidious.compiler.astutils import Visitor, Mutator
 from fastidious.compilers import check_rulenames, check_left_recursion
 from fastidious.compiler.action.pyclass import SimplePyAction
 from fastidious.compiler.pyutils import indent
 
-if six.PY3:
-    from types import FunctionType
-    UPPERCASE = string.ascii_uppercase
-    LOWERCASE = string.ascii_lowercase
-else:
-    from types import UnboundMethodType
-    UPPERCASE = string.uppercase
-    LOWERCASE = string.lowercase
+from types import FunctionType
+
+UPPERCASE = string.ascii_uppercase
+LOWERCASE = string.ascii_lowercase
 
 
 class _RuleNameToCaptures(Visitor):
@@ -99,6 +93,7 @@ elif self.pos > head[0]:
         code = """    {3}
     # -- self.p_debug("{0}({5})")
     # -- self._debug_indent += 1
+    _p_rule_savepoint_check = len(self._p_savepoint_stack)
     args = dict()
 {1}
     # -- self._debug_indent -= 1
@@ -108,6 +103,7 @@ elif self.pos > head[0]:
     else:
 {4}
         # -- self.p_debug("{0}({5}) -- NO MATCH")
+    assert len(self._p_savepoint_stack) == _p_rule_savepoint_check
     return result
         """.format(node.name,
                    indent(node.expr._py_code, 1),
@@ -284,6 +280,24 @@ if result is self.NoMatch:
         node._py_code = code.strip()
 
     def visit_charrangeexpr(self, node):
+        if node.ranges:
+            ranges = """
+elif n is not None:
+    for r in {0}:
+        if r[0] <= ord(n) <= r[1]:
+            self.p_discard()
+            result = n
+            break
+    else:
+        self.p_restore()
+{1}
+        result = self.NoMatch
+            """.format(
+                repr(node.ranges),
+                indent(self.report_error(node.id), 2),            
+            )
+        else:
+            ranges = ""
         code = """
 # {0}
 self.p_save()
@@ -291,13 +305,15 @@ n = self.p_next()
 if n is not None and n in {1}:
     self.p_discard()
     result = n
+{2}
 else:
     self.p_restore()
-{2}
+{3}
     result = self.NoMatch
         """.format(
             node.as_grammar(),
-            repr(node.chars),
+            repr(node.singles),
+            ranges,
             indent(self.report_error(node.id), 1)
         )
         node._py_code = code.strip()
@@ -440,15 +456,12 @@ class MethodBuilder(Visitor):
 
     def visit_rule(self, node):
         locals_ = dict()
+        # print(node._py_code)
+        # print()
         exec(node._py_code, None, locals_)
         new_method = locals_[node.name]
-        if six.PY3:
-            new_method.__name__ = node.name
-            meth = FunctionType(new_method.__code__, globals(), node.name)
-        else:
-            new_method._code = node._py_code  # noqa
-            new_method.func_name = node.name  # noqa
-            meth = UnboundMethodType(new_method, None, self.parser)  # noqa
+        new_method.__name__ = node.name
+        meth = FunctionType(new_method.__code__, globals(), node.name)
         setattr(self.parser, node.name, meth)
         return node
 
@@ -531,7 +544,6 @@ More info at https://github.com/lisael/fastidious
 '''.format(cmd))
         out.write("""
 import re
-import six
 
 """)
 

@@ -70,7 +70,6 @@ class AtomicExpr(object):
     """Marker class for atomic expressions"""
 
 
-
 class SeqExpr(ExprMixin):
     def __init__(self, *exprs, **kwargs):
         ExprMixin.__init__(self, *exprs, **kwargs)
@@ -203,30 +202,60 @@ class RegexExpr(ExprMixin, AtomicExpr):
 
 
 class CharRangeExpr(ExprMixin, AtomicExpr):
-    def __init__(self, chars, terminal=False):
-        ExprMixin.__init__(self, chars, terminal=terminal)
-        self.chars = chars
+    def __init__(self, singles, ranges=None, terminal=False):
+        ExprMixin.__init__(self, singles, ranges, terminal=terminal)
+        self.singles = singles
+        self.ranges = ranges if ranges is not None else []
 
     def __call__(self, parser):
-        self.debug(parser, "CharRangeExpr `{}`".format(self.chars))
+        self.debug(parser, "CharRangeExpr `{}`".format(self.as_grammar()))
         parser.p_save()
         n = parser.p_next()
-        if n is not None and n in self.chars:
-            parser.p_discard()
-            return n
+        if n is not None:
+            if n in self.singles:
+                parser.p_discard()
+                return n
+            for r in self.ranges:
+                if r[0] <= ord(n) <= r[1]:
+                    parser.p_discard()
+                    return n
         parser.p_restore()
         parser.p_nomatch(self.id)
         return parser.NoMatch
 
+    def char_to_str(self, char):
+        if char == "\t":
+            return r"\t"
+        if char == "\n":
+            return r"\n"
+        if char == "\r":
+            return r"\r"
+        if char == "\]":
+            return r"\]"
+        o = ord(char)
+        if o > 127:
+            res = f"{o:x}"
+            if len(res) <= 2:
+                return f"\\x{o:02x}"
+            if len(res) <= 4:
+                return f"\\u{o:04x}"
+            if len(res) <= 8:
+                return f"\\U{o:04x}"
+            assert False
+        return char
+
     def as_grammar(self, atomic=False):
-        chars = self.chars.replace("0123456789", "0-9")
-        chars = chars.replace("\t", r"\t")
-        chars = chars.replace("\n", r"\n")
-        chars = chars.replace("\r", r"\r")
-        chars = chars.replace("abcdefghijklmnopqrstuvwxyz", "a-z")
-        chars = chars.replace("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "A-Z")
-        chars = chars.replace("0123456789", "0-9")
-        return "[{}]".format(chars)
+        gr = "["
+        singles = self.singles
+        if "-" in singles:
+            gr = gr + "-"
+            singles = singles.replace("-", "")
+        for s in singles:
+            gr += self.char_to_str(s)
+        for r in self.ranges:
+            gr += self.char_to_str(chr(r[0])) + "-" + self.char_to_str(chr(r[1]))
+        gr += "]"
+        return gr
 
 
 class OneOrMoreExpr(ExprMixin):
@@ -294,7 +323,7 @@ class RuleExpr(ExprMixin, AtomicExpr):
         rule_method = getattr(parser, self.rulename, None)
         if rule_method is None:
             parser.p_parse_error("Rule `%s` not found" % self.rulename)
-        return rule_method()
+        return rule_method(parser)
 
     def as_grammar(self, atomic=False):
         return self.rulename

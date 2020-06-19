@@ -25,6 +25,7 @@ class _FastidiousParserBootstraper(
         six.with_metaclass(ParserMeta, ParserMixin, _FastidiousParserMixin)):
 
     p_compiler = FastidiousCompiler()
+    __debug___ = True
     __rules__ = [
 
         # grammar <- __ rules:( rule __ )+

@@ -17,15 +17,19 @@ class GrammarParserMixin(object):
 
     def test_class_char(self):
         p = self.klass(r'[ab]')
-        self.assertEquals(p.char_range_expr().chars, "ab")
+        self.assertEquals(p.char_range_expr().singles, "ab")
         p = self.klass(r'[ab\]]')
-        self.assertEquals(p.char_range_expr().chars, "ab]")
+        self.assertEquals(p.char_range_expr().singles, "ab]")
         p = self.klass(r'[a-c]')
-        self.assertEquals(p.char_range_expr().chars, "abc")
+        expr = p.char_range_expr()
+        self.assertEquals(expr.singles, "")
+        self.assertEquals(expr.ranges, [(97, 99)])
         p = self.klass(r'[ab\n]')
-        self.assertEquals(p.char_range_expr().chars, "ab\n")
+        self.assertEquals(p.char_range_expr().singles, "ab\n")
         p = self.klass(r'[0-9\\]')
-        self.assertEquals(p.char_range_expr().chars, "0123456789\\")
+        expr = p.char_range_expr()
+        self.assertEquals(expr.singles, "\\")
+        self.assertEquals(expr.ranges, [(48, 57)])
 
     def test_rule(self):
         parser = self.klass("rulename <- 'literal' {on_rulename}")
