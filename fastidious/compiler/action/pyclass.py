@@ -94,7 +94,7 @@ class SimplePyAction(Action):
                 node.action = _SimplePyArgAction(node.action.argname,
                                                  node.action.actionstr)
             elif isinstance(node.action, _SimpleCodeAction):
-                node.action = _SimpleCodeAction(node.action.code,
+                node.action = _SimplePyCodeAction(node.action.code,
                                                 node.action.actionstr)
             elif isinstance(node.action, _SimpleMethAction):
                 node.action = _SimplePyMethAction(node.action.meth,
@@ -109,7 +109,7 @@ class SimplePyAction(Action):
         return parser_class.__rules__
 
 
-class _SimpleCodeAction(_SimpleCodeAction, SimplePyAction):
+class _SimplePyCodeAction(_SimpleCodeAction, SimplePyAction):
     def as_code(self):
         return "result = %s" % self.code
 
