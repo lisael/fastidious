@@ -1,10 +1,8 @@
 import re
 import string
 
-import six
-
-
 from fastidious.expressions import (
+    ExprMixin,
     AnyCharExpr,
     CharRangeExpr,
     ChoiceExpr,
@@ -22,12 +20,8 @@ from fastidious.expressions import (
 )
 
 
-if six.PY3:
-    UPPERCASE = string.ascii_uppercase
-    LOWERCASE = string.ascii_lowercase
-else:
-    UPPERCASE = string.uppercase
-    LOWERCASE = string.lowercase
+UPPERCASE = string.ascii_uppercase
+LOWERCASE = string.ascii_lowercase
 
 
 class ParserError(Exception):
@@ -35,7 +29,7 @@ class ParserError(Exception):
 
 
 class ParserMixin(object):
-    __memoize__ = True
+    __memoize__ = False
     # __debug___ = True
     __debug___ = False
     __code_gen__ = True
@@ -54,6 +48,14 @@ class ParserMixin(object):
         self._p_memoized = {}
 
         self._p_error_stack = [(0, 0)]
+
+    @property
+    def p_pos(self):
+        return self.pos
+
+    @property
+    def p_start(self):
+        return self.start
 
     def p_nomatch(self, id):
         head = self._p_error_stack[0]
@@ -121,14 +123,29 @@ class ParserMixin(object):
             return self.pos
         return self.pos - nlidx
 
+    def p_context(self, lines=2):
+        "return the input stating at `lines` before current position"
+        p = min(self.pos, len(self.input)-1)
+        needed = lines
+        while p > 0 and lines > 0:
+            char = self.input[p]
+            if char == "\n":
+                lines -= 1
+            if lines > 0:
+                p -= 1
+        result = self.input[p:].splitlines()
+        result = result[0:needed-lines]
+        return "\n".join(result)
+
     def p_pretty_pos(self):
         "Print current line and a pretty cursor below. Used in error messages"
-        col = self.p_current_col
+        col = self.p_current_col - 1
         suffix = self.input[self.pos - col:]
+        context = self.p_context()
         end = suffix.find("\n")
         if end != -1:
             suffix = suffix[:end]
-        return "%s\n%s" % (suffix, "-" * col + "^")
+        return "%s\n%s\n%s" % (context, suffix, "-" * col + "^")
 
     def p_parse_error(self, message):
         raise ParserError(
@@ -188,7 +205,7 @@ class ParserMixin(object):
         'abc'
 
         """
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             return value
         result = ""
         for i in value:
@@ -215,7 +232,11 @@ class ParserMixin(object):
         if methodname is None:
             methodname = cls.__default__
         p = cls(input)
-        result = getattr(p, methodname)()
+        meth = getattr(p, methodname)
+        if isinstance(meth, ExprMixin):
+            result = meth(p)
+        else:
+            result = meth()
         if result is cls.NoMatch or parse_all and p.p_peek() is not None:
             p.p_raise()
         return result
@@ -264,6 +285,8 @@ class _FastidiousParserMixin(object):
 
     def on_rule(self, value, name, expr, code, alias=None, terminal=False):
         terminal = terminal == '`'
+        if alias == "^":
+            alias = name
         if code:
             r = Rule(name, expr, code[1], alias=alias, terminal=terminal)
         else:
@@ -299,7 +322,7 @@ class _FastidiousParserMixin(object):
                 label[0] = expr.rulename
             except AttributeError:
                 self.p_parse_error(
-                    "Label can be omitted only on rule reference"
+                    "%s : Label can be omitted only on rule reference" % expr.as_grammar()
                 )
         return LabeledExpr(label[0], expr)
 
@@ -329,7 +352,7 @@ class _FastidiousParserMixin(object):
     def on_lit_expr(self, value, lit, ignore):
         return LiteralExpr(self.p_flatten(lit), ignore == "i")
 
-    def on_char_range_expr(self, value, content, ignore):
+    def on_char_range_expr_old(self, value, content, ignore):
         content = self.p_flatten(content)
         if ignore == "i":
             # don't use sets to avoid ordering mess
@@ -338,7 +361,7 @@ class _FastidiousParserMixin(object):
             content += "".join([c for c in upper if c not in content])
         return CharRangeExpr(content)
 
-    def on_class_char_range(self, value, start, end):
+    def on_class_char_range_old(self, value, start, end):
         try:
             if start.islower():
                 charset = LOWERCASE
@@ -354,6 +377,37 @@ class _FastidiousParserMixin(object):
             self.p_parse_error(
                 "Invalid char range : `{}`".format(self.p_flatten(value)))
 
+    def on_char_range_expr(self, value, content, ignore):
+        ranges = []
+        singles = ""
+        content = self.p_flatten_list(content)
+        for c in content:
+            if isinstance(c, str):
+                singles += c
+            if isinstance(c, tuple):
+                ranges.append(c)
+        res = ""
+        for s in singles:
+            for r in ranges:
+                if r[0] <= ord(s) <= r[1]:
+                    res += s
+        # TODO: warn on ignore
+        return CharRangeExpr(singles, ranges)
+
+    def on_class_char_range(self, value, start, end):
+        try:
+            start = ord(start)
+            end = ord(end)
+            assert start < end
+            return (start, end)
+        except Exception:
+            self.p_parse_error(
+                "Invalid char range : `{}`".format(self.p_flatten(value)))
+
+    def on_hex_code_point(self, _, hex):
+        return chr(int(self.p_flatten(hex), 16))
+        # return bytearray.fromhex(self.p_flatten(hex)).decode("utf-8")
+
     _escaped = {
         "a": "\a",
         "b": "\b",
@@ -365,7 +419,7 @@ class _FastidiousParserMixin(object):
         "\\": "\\",
     }
 
-    def on_common_escape(self, value):
+    def on_single_char_escape(self, value):
         return self._escaped[self.p_flatten(value)]
 
 

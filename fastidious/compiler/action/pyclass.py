@@ -34,6 +34,10 @@ class SimpleAction(Action):
                                 argname, node.name))
                     node.action = _SimpleArgAction(argname, actionstr)
                     return
+                elif actionstr.startswith(";"):
+                    code = actionstr[1:]
+                    node.action = _SimpleCodeAction(code, actionstr)
+                    return
                 meth = getattr(self.parser, actionstr, None)
                 if meth is None:
                     raise ActionError("Unknown method `%s`" % actionstr)
@@ -52,6 +56,16 @@ class SimpleAction(Action):
         for r in parser_class.__rules__:
             v.visit(r)
         return parser_class.__rules__
+
+
+class _SimpleCodeAction(SimpleAction):
+    def __init__(self, code, actionstr):
+        self.code = code
+        self.actionstr = actionstr
+
+    def __call__(self, parser, result, **args):
+        return eval(self.code, locals={
+            "self": parser, "result": result, "args": args})
 
 
 class _SimpleArgAction(SimpleAction):
@@ -79,7 +93,10 @@ class SimplePyAction(Action):
             if isinstance(node.action, _SimpleArgAction):
                 node.action = _SimplePyArgAction(node.action.argname,
                                                  node.action.actionstr)
-            if isinstance(node.action, _SimpleMethAction):
+            elif isinstance(node.action, _SimpleCodeAction):
+                node.action = _SimplePyCodeAction(node.action.code,
+                                                node.action.actionstr)
+            elif isinstance(node.action, _SimpleMethAction):
                 node.action = _SimplePyMethAction(node.action.meth,
                                                   node.action.actionstr)
 
@@ -90,6 +107,11 @@ class SimplePyAction(Action):
         for r in parser_class.__rules__:
             v.visit(r)
         return parser_class.__rules__
+
+
+class _SimplePyCodeAction(_SimpleCodeAction, SimplePyAction):
+    def as_code(self):
+        return "result = %s" % self.code
 
 
 class _SimplePyArgAction(_SimpleArgAction, SimplePyAction):

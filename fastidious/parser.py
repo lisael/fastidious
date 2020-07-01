@@ -24,12 +24,13 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
     __grammar__ = r"""
         grammar <- __ rules:( rule __ )+
 
-        rule "RULE" <- terminal:"`"? name:identifier_name __ ( :alias _ )? "<-" __ expr:expression code:( __ code_block )? EOS
+        rule "RULE" <- terminal:"`"? name:identifier_name __ ( :alias _ )? arrow __ expr:expression code:( __ code_block )? EOS
+        arrow "ARROW" <- "<-" / "←"
 
         code_block "CODE_BLOCK" <- "{" code:code "}" {@code}
         code <- ( ( ![{}] source_char )+ / ( "{" code "}" ) )* {p_flatten}
 
-        alias "ALIAS" <- string_literal {p_flatten}
+        alias "ALIAS" <- string_literal / "^" {p_flatten}
 
         expression "EXPRESSION" <- choice_expr
         choice_expr <- first:seq_expr rest:( __ "/" __ seq_expr )*
@@ -48,7 +49,7 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
 
         any_char_expr <- "."
 
-        rule_expr <- name:identifier_name !( __ (string_literal __ )? "<-" )
+        rule_expr <- name:identifier_name !( __ (string_literal __ )? arrow )
 
         seq_expr <- first:labeled_expr rest:( __ labeled_expr )*
 
@@ -64,7 +65,10 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
         class_char <- ( !( "]" / "\\" / EOL ) char:source_char ) / ( "\\" char:char_class_escape ) {@char}
         char_class_escape <- "]" / common_escape
 
-        common_escape <- single_char_escape
+        common_escape <- single_char_escape / code_point
+        code_point <- hex_code_point
+        hex_code_point <- "x" hex:(hex_char hex_char) / "u" hex:(hex_char hex_char hex_char hex_char) / "U" hex:(hex_char hex_char hex_char hex_char hex_char hex_char hex_char hex_char)
+        hex_char <- [0-9a-fA-F]
         single_char_escape <- "a" / "b" / "n" / "f" / "r" / "t" / "v" / "\\"
 
         comment <- "#" ( !EOL source_char )*

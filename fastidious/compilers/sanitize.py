@@ -34,7 +34,7 @@ class RuleNameChecker(Visitor):
             self.visit(r)
         for name, locations in self.rule_refs.items():
             if name not in self.rulenames:
-                locs = ", ".join(locations)[::-1].replace(",", "dna ", 1)[::-1]
+                locs = ", ".join(set(locations))[::-1].replace(",", " dna ", 1)[::-1]
                 raise UnknownRule(
                     "Rule `%s` referenced in %s is not defined" % (name,
                                                                    locs))

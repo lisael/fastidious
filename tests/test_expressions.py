@@ -1,8 +1,6 @@
 import re  # noqa
 from unittest import TestCase
 
-import six
-
 from fastidious.expressions import *  # noqa
 from fastidious.bootstrap import ParserMixin
 from fastidious import Parser
@@ -21,7 +19,7 @@ class ExprTestMixin(object):
         p = ParserMock(input)
         r = l(p)
         self.assertEquals(r, res)
-        if isinstance(res, six.string_types):
+        if isinstance(res, str):
             self.assertEquals(input[len(res):], p.p_suffix())
 
         # test the generated code
@@ -32,7 +30,7 @@ class ExprTestMixin(object):
 
         r = TestParser(input).rule()
         self.assertEquals(r, res)
-        if isinstance(res, six.string_types):
+        if isinstance(res, str):
             self.assertEquals(input[len(res):], p.p_suffix())
         return TestParser
 
@@ -57,6 +55,8 @@ class RegexExprTest(TestCase, ExprTestMixin):
     def test_regex(self):
         self.expect(("a*",), "aab", "aa")
         self.expect(("a*", "i"), "Aabc", "Aa")
+        self.expect(("\t",), "\ta", "\t")
+        self.expect(("\\" +"u0042",), "Ba", "B")
         self.expect(("a+",), "b", self.NoMatch)
 
 
@@ -67,6 +67,10 @@ class CharRangeExprTest(TestCase, ExprTestMixin):
         self.expect(("ab",), "add", "a")
         self.expect(("ab",), "bdd", "b")
         self.expect(("ab",), "cab", self.NoMatch)
+        self.expect(("",[(ord("a"), ord("z"))]), "a0", "a")
+        self.expect(('"',[(ord("a"), ord("z"))]), '"a0', '"')
+        # self.expect((r'\x61b',), "a0", "a")
+
 
 
 class SeqExprTest(TestCase, ExprTestMixin):
