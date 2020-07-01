@@ -30,7 +30,7 @@ class FastidiousParser(Parser, _FastidiousParserMixin):
         code_block "CODE_BLOCK" <- "{" code:code "}" {@code}
         code <- ( ( ![{}] source_char )+ / ( "{" code "}" ) )* {p_flatten}
 
-        alias "ALIAS" <- string_literal {p_flatten}
+        alias "ALIAS" <- string_literal / "^" {p_flatten}
 
         expression "EXPRESSION" <- choice_expr
         choice_expr <- first:seq_expr rest:( __ "/" __ seq_expr )*

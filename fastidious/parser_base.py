@@ -285,6 +285,8 @@ class _FastidiousParserMixin(object):
 
     def on_rule(self, value, name, expr, code, alias=None, terminal=False):
         terminal = terminal == '`'
+        if alias == "^":
+            alias = name
         if code:
             r = Rule(name, expr, code[1], alias=alias, terminal=terminal)
         else:
